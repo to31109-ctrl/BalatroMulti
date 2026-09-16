@@ -297,6 +297,7 @@ function COOP.join(ip, port)
         return false, err
     end
     COOP.mode = 'client'
+    COOP.transport = 'direct'
     COOP.client_obj = c
     COOP.me.name = COOP.cfg.name
     COOP.players = {}

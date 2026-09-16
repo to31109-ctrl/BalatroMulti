@@ -5,7 +5,7 @@ COOP.ui = ui
 ui.screen = nil
 ui.vars = { status = '', deck = '', stake = '', order = '', title = '', code = '', code_hint = '', slots = { { t = '' }, { t = '' }, { t = '' }, { t = '' } } }
 ui.hud = nil
-ui.hud_vars = { info = { t = '' } }
+ui.hud_vars = { info = { t = '' }, link = '' }
 for i = 1, COOP.MAX_PLAYERS do
     ui.hud_vars[i] = { name = '', status = '', colour = { 1, 1, 1, 1 } }
 end
@@ -334,7 +334,7 @@ end
 function ui.ensure_hud()
     if ui.hud or not G.HUD or G.STAGE ~= G.STAGES.RUN then return end
     local rows = {}
-    rows[#rows + 1] = row({ text('CO-OP', 0.35, G.C.GOLD) })
+    rows[#rows + 1] = row({ text('CO-OP', 0.35, G.C.GOLD), text(nil, 0.22, G.C.UI.TEXT_LIGHT, ui.hud_vars, 'link') })
     for i = 1, COOP.MAX_PLAYERS do
         rows[#rows + 1] = { n = G.UIT.R, config = { align = 'cl', padding = 0.01 }, nodes = {
             { n = G.UIT.T, config = { ref_table = ui.hud_vars[i], ref_value = 'name', scale = 0.3, colour = ui.hud_vars[i].colour, shadow = true } },
@@ -417,6 +417,7 @@ function ui.refresh_hud()
         end
     end
     ui.hud_vars.info.t = info
+    ui.hud_vars.link = COOP.transport == 'relay' and ' via relay' or (COOP.transport and ' direct' or '')
 end
 
 -- Toasts ---------------------------------------------------------------------
@@ -434,11 +435,11 @@ local function lobby_vars()
     local hi = COOP.host_info
     if hi and hi.relay then
         ui.vars.code = hi.code or '?'
-        ui.vars.code_hint = 'Relay room: friends type this code anywhere. No router setup needed (adds some ping).'
+        ui.vars.code_hint = 'CONNECTION: RELAY (Cloudflare). Works anywhere, no router setup, adds about 0.3 s of delay.'
     elseif hi then
         ui.vars.code = hi.code or hi.lan_code or '?'
         if hi.code and not hi.upnp_error then
-            ui.vars.code_hint = 'Works over the internet. Same-network friends can also use LAN code ' .. tostring(hi.lan_code) .. ' (IP ' .. tostring(hi.lan_ip) .. ':' .. tostring(hi.port) .. ')'
+            ui.vars.code_hint = 'CONNECTION: DIRECT (fastest). Same-network friends can also use LAN code ' .. tostring(hi.lan_code) .. ' (IP ' .. tostring(hi.lan_ip) .. ':' .. tostring(hi.port) .. ')'
         else
             ui.vars.code_hint = 'LAN code: ' .. tostring(hi.lan_code) .. ' (IP ' .. tostring(hi.lan_ip) .. ':' .. tostring(hi.port) .. ')'
         end

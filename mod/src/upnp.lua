@@ -171,6 +171,13 @@ function upnp.open_port(port, local_ip)
         .. '<NewLeaseDuration>0</NewLeaseDuration>'
     local resp, err = soap(st.control_url, st.service_type, 'AddPortMapping', args)
     if not resp then
+        -- a stale mapping from an earlier session (crash, no clean exit) can block a new one
+        COOP.log('upnp: first AddPortMapping failed (' .. tostring(err) .. '), clearing stale mapping and retrying')
+        pcall(soap, st.control_url, st.service_type, 'DeletePortMapping',
+            '<NewRemoteHost></NewRemoteHost><NewExternalPort>' .. port .. '</NewExternalPort><NewProtocol>TCP</NewProtocol>', 3)
+        resp, err = soap(st.control_url, st.service_type, 'AddPortMapping', args)
+    end
+    if not resp then
         -- some routers reject lease 0; retry with a 12h lease
         args = args:gsub('<NewLeaseDuration>0</NewLeaseDuration>', '<NewLeaseDuration>43200</NewLeaseDuration>')
         resp, err = soap(st.control_url, st.service_type, 'AddPortMapping', args)

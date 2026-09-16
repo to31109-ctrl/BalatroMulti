@@ -55,7 +55,7 @@ end
 function spec.send_updates(dt)
     spec.send_timer = spec.send_timer + dt
     spec.cursor_timer = spec.cursor_timer + dt
-    if spec.cursor_timer >= 0.08 and G.CURSOR then
+    if spec.cursor_timer >= 0.12 and G.CURSOR then
         spec.cursor_timer = 0
         local x, y = G.CURSOR.T.x, G.CURSOR.T.y
         if spec.last_cursor.x == nil or math.abs(x - spec.last_cursor.x) > 0.02 or math.abs(y - spec.last_cursor.y) > 0.02 then
