@@ -230,6 +230,8 @@ function COOP.leave(silent)
     local was_active = COOP.active
     if was_active then COOP.end_local_run_mods() end
     COOP.load_meta = nil
+    COOP.pending_local_dollars = 0
+    COOP.wallet_target = nil
     COOP.reset_state()
     if not silent then COOP.log('left co-op session') end
 end
@@ -822,10 +824,10 @@ function COOP.try_next_round()
     if not ok then COOP.log('next_round failed: ' .. tostring(err)) end
 end
 
-COOP.client_handlers.wallet = function(msg)
-    if not COOP.active or COOP.mode == 'host' then return end
-    local v = tonumber(msg.v)
-    if not v then return end
+COOP.pending_local_dollars = 0   -- deltas whose local animation has not run yet (client)
+COOP.wallet_target = nil
+
+local function apply_wallet(v)
     G.GAME.dollars = v
     pcall(function()
         local dollar_UI = G.HUD and G.HUD:get_UIE_by_ID('dollar_text_UI')
@@ -834,6 +836,18 @@ COOP.client_handlers.wallet = function(msg)
             G.HUD:recalculate()
         end
     end)
+end
+
+COOP.client_handlers.wallet = function(msg)
+    if not COOP.active or COOP.mode == 'host' then return end
+    local v = tonumber(msg.v)
+    if not v then return end
+    if COOP.pending_local_dollars ~= 0 then
+        -- our own +$ animation is still queued; apply the host value once it has run
+        COOP.wallet_target = v
+        return
+    end
+    apply_wallet(v)
 end
 
 COOP.client_handlers.turn = function(msg)
@@ -968,11 +982,26 @@ function COOP.on_local_dollars(mod)
     if COOP.mode == 'host' then
         -- broadcast after the base game's own event applied the change
         G.E_MANAGER:add_event(Event({
-            trigger = 'immediate', blocking = false, blockable = false,
+            trigger = 'immediate', blocking = false, blockable = true,
             func = function() COOP.broadcast_wallet(); return true end
         }))
     elseif COOP.mode == 'client' then
-        if mod and mod ~= 0 then COOP.send_to_host({ t = 'dollars', delta = mod }) end
+        if mod and mod ~= 0 then
+            COOP.pending_local_dollars = COOP.pending_local_dollars + mod
+            COOP.send_to_host({ t = 'dollars', delta = mod })
+            -- runs right after the base game's own event applied the local change
+            G.E_MANAGER:add_event(Event({
+                trigger = 'immediate', blocking = false, blockable = true,
+                func = function()
+                    COOP.pending_local_dollars = COOP.pending_local_dollars - mod
+                    if COOP.pending_local_dollars == 0 and COOP.wallet_target then
+                        apply_wallet(COOP.wallet_target)
+                        COOP.wallet_target = nil
+                    end
+                    return true
+                end
+            }))
+        end
     end
 end
 

@@ -294,7 +294,7 @@ function shop.on_shop_created()
     end
     if G.shop_booster then
         G.shop_booster.config.card_limit = 2 * n
-        G.shop_booster.T.w = math.min(1.25 * G.CARD_W * 2 * n, 6.2)
+        G.shop_booster.T.w = math.min(1.25 * G.CARD_W * 2 * n, 7.4)
     end
     if not COOP.is_host() then
         -- clients never generate their own shop; the host's contents arrive over the network
