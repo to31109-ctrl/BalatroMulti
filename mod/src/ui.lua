@@ -5,7 +5,7 @@ COOP.ui = ui
 ui.screen = nil
 ui.vars = { status = '', deck = '', stake = '', order = '', title = '', code = '', code_hint = '', slots = { { t = '' }, { t = '' }, { t = '' }, { t = '' } } }
 ui.hud = nil
-ui.hud_vars = { info = { t = '' }, link = '' }
+ui.hud_vars = { info = { t = '' }, link = '', mine = '' }
 for i = 1, COOP.MAX_PLAYERS do
     ui.hud_vars[i] = { name = '', status = '', colour = { 1, 1, 1, 1 } }
 end
@@ -346,6 +346,9 @@ function ui.ensure_hud()
     rows[#rows + 1] = { n = G.UIT.R, config = { align = 'cm', padding = 0.03 }, nodes = {
         { n = G.UIT.T, config = { ref_table = ui.hud_vars.info, ref_value = 't', scale = 0.24, colour = G.C.GOLD } },
     } }
+    rows[#rows + 1] = { n = G.UIT.R, config = { align = 'cm', padding = 0.02 }, nodes = {
+        { n = G.UIT.T, config = { ref_table = ui.hud_vars, ref_value = 'mine', scale = 0.24, colour = G.C.WHITE, shadow = true } },
+    } }
     ui.hud = UIBox({
         definition = { n = G.UIT.ROOT, config = { align = 'cm', padding = 0.06, r = 0.1, colour = G.C.UI.TRANSPARENT_DARK, minw = 2.5, maxw = 2.5 }, nodes = rows },
         config = { align = 'cri', offset = { x = 1.15, y = -1.0 }, major = G.ROOM_ATTACH, bond = 'Weak' },
@@ -418,6 +421,13 @@ function ui.refresh_hud()
     end
     ui.hud_vars.info.t = info
     ui.hud_vars.link = COOP.transport == 'relay' and ' via relay' or (COOP.transport and ' direct' or '')
+    -- while spectating the big HUD shows the other player's numbers; show our own here
+    local sp = COOP.spectate and COOP.spectate.saved
+    if sp and COOP.spectate.target then
+        ui.hud_vars.mine = 'Your hands: ' .. tostring(sp.hands) .. '   discards: ' .. tostring(sp.discards)
+    else
+        ui.hud_vars.mine = ''
+    end
 end
 
 -- Toasts ---------------------------------------------------------------------

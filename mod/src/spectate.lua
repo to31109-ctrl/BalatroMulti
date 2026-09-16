@@ -116,6 +116,7 @@ function spec.start(id)
     for _, a in ipairs(spec.hidden) do a.states.visible = false end
     local cr = G.GAME.current_round
     spec.saved = { hands = cr.hands_left, discards = cr.discards_left }
+    spec.shown = { hands = nil, discards = nil }
     spec.areas = {
         hand = make_mirror(G.hand, 'hand'),
         play = make_mirror(G.play, 'play'),
@@ -146,6 +147,7 @@ function spec.stop()
         G.GAME.current_round.discards_left = spec.saved.discards
         spec.saved = nil
     end
+    spec.shown = nil
     spec.cursor.visible = false
     pcall(update_hand_text, { immediate = true, nopulse = true, delay = 0 }, { mult = 0, chips = 0, level = '', handname = '' })
     if G.hand and G.hand.cards then pcall(G.hand.align_cards, G.hand) end
@@ -171,8 +173,9 @@ function spec.apply_part(part, data)
     if not data then return end
     if part == 'hud' then
         local cr = G.GAME.current_round
-        if data.hands ~= nil then cr.hands_left = data.hands end
-        if data.discards ~= nil then cr.discards_left = data.discards end
+        spec.shown = spec.shown or {}
+        if data.hands ~= nil then cr.hands_left = data.hands; spec.shown.hands = data.hands end
+        if data.discards ~= nil then cr.discards_left = data.discards; spec.shown.discards = data.discards end
         if data.chips ~= nil then
             G.GAME.chips = data.chips
             if COOP.run then COOP.run.chips = data.chips end
@@ -250,6 +253,17 @@ end
 function spec.update(dt)
     if COOP.is_my_turn() then
         spec.send_updates(dt)
+    end
+    if spec.target and spec.saved and spec.shown and G.GAME and G.GAME.current_round then
+        local cr = G.GAME.current_round
+        if spec.shown.hands ~= nil and cr.hands_left ~= spec.shown.hands then
+            spec.saved.hands = cr.hands_left
+            cr.hands_left = spec.shown.hands
+        end
+        if spec.shown.discards ~= nil and cr.discards_left ~= spec.shown.discards then
+            spec.saved.discards = cr.discards_left
+            cr.discards_left = spec.shown.discards
+        end
     end
     if spec.target then
         local c = spec.cursor

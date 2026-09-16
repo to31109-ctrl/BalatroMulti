@@ -190,7 +190,13 @@ wrap(G.FUNCS, 'reroll_shop', function(orig, e)
         COOP.send_to_host({ t = 'reroll' })
         return
     end
-    return orig(e)
+    if COOP.active and not G.shop_jokers then return end  -- shop already gone: don't crash
+    local r = orig(e)
+    if COOP.active and COOP.is_host() then
+        -- one shared reroll happened: let every client run its own jokers' reroll effect
+        COOP.broadcast({ t = 'reroll_fx' }, COOP.me.id)
+    end
+    return r
 end)
 
 wrap(G.FUNCS, 'buy_from_shop', function(orig, e)

@@ -1157,6 +1157,13 @@ COOP.client_handlers.round_result = function(msg)
     end
 end
 
+COOP.client_handlers.reroll_fx = function(msg)
+    if not COOP.active or not G.jokers or not G.jokers.cards then return end
+    for i = 1, #G.jokers.cards do
+        pcall(function() G.jokers.cards[i]:calculate_joker({ reroll_shop = true }) end)
+    end
+end
+
 COOP.client_handlers.shop = function(msg)
     if COOP.shop and COOP.shop.on_shop then COOP.shop.on_shop(msg) end
 end

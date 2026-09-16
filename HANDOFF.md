@@ -63,6 +63,8 @@ Lobby/join by code (direct + relay), external reachability of the UPnP port from
 ## Known issues / open investigation
 - **Friend (Leon-Louid) "super laggy" then game closed (session 2026-09-16 13:47–13:51, over the relay).** Collected logs: his mod overhead ≤ 2 ms/frame, unsent bytes 0, yet his game ran at 2 FPS for ~10 s on his own turn and 12 FPS during scoring, then the socket closed. The host ran 165 FPS. Conclusion so far: stall inside his game/PC (window focus loss / Discord streaming / local), not the mod or the pipe. 1.3.2 added focus-change, frame-spike and crash logging; **next step is one more session on Auto (lobby must say DIRECT) and reading `coop_players.log`.**
 - Relay ping from South Africa is ~350–400 ms because Cloudflare Durable Objects are not hosted in Africa (location hint `afr` is ignored). Direct is ~20 ms. Auto prefers direct.
+- Friend's lag (session 2026-09-16 17:00–18:20, player Nigber): every FPS drop lines up with a `window LOST FOCUS` line in coop_players.log = Discord screen-share / alt-tab throttling on his PC. Mod overhead stayed ≤ 2 ms. Nothing to fix in the mod; advice: share the *window* not the screen, keep Balatro focused, plug in laptops.
+- Rule of thumb for joker bugs: any joker context fired by a host-executed shared action must be re-broadcast so clients' jokers fire too (done for reroll; buying/skip/select/ending_shop already run locally on each player).
 - Mr. Bones / similar "saved" jokers only save the player that owns them → other players would game-over (desync). Not handled.
 - Boss reroll vouchers (Director's Cut/Retcon) are not synced.
 - Vanilla `Card:save` typo (`highligted`) means highlight must be sent separately (done).
@@ -89,5 +91,6 @@ Gotcha: Bash heredocs in this environment collapse `\\` to `\`; write files with
 ## Release log
 - 1.0.0 core mod + launcher · 1.1.0 UPnP join codes, save/load, firewall rule · 1.1.1 exe picker · 1.1.2 vote/ready guards
 - 1.2.0 copy/paste codes, Escape-menu save with mid-blind resume, spectator boxes · 1.2.1 per-player seeds, 12× smaller stream, perf watchdog · 1.2.2 host collects all players' logs, ping, stall detection
+- 1.3.5 FIXED: jokers that react to shop rerolls (Flash Card) never fired for clients because the reroll runs on the host -> host now broadcasts `reroll_fx`, each client runs its own jokers' `reroll_shop` context. FIXED: a spectator's own hands/discards got overwritten when a joker's +hands animation (Burglar) finished after spectating began -> spectate now tracks own values every frame (`spec.shown` vs `spec.saved`). Added 'Your hands / discards' line in the CO-OP panel while spectating. Guarded reroll against a torn-down shop (host crash seen in testing).
 - 1.3.4 spectators hear the active player's sound effects (play_sound forwarded, ≤40/s)
 - 1.3.0 relay mode (dormant) · 1.3.1 relay deployed, Auto transport · 1.3.2 crash/focus/spike diagnostics · 1.3.3 UPnP retry, connection type shown, lower cursor rate
