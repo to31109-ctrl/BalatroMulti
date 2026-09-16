@@ -64,6 +64,7 @@ local function signature()
         parts[#parts + 1] = '|'
     end
     parts[#parts + 1] = tostring(G.GAME.current_round.reroll_cost)
+    parts[#parts + 1] = tostring(G.GAME.discount_percent) .. '/' .. tostring(G.GAME.current_round.free_rerolls)
     return table.concat(parts, ',')
 end
 
@@ -203,9 +204,14 @@ function shop.reconcile(area, list, kind)
     end
     local keep = {}
     for _, item in ipairs(list) do
-        if not existing[item.uid] then
+        local c = existing[item.uid]
+        if not c then
             local ok, err = pcall(make_card, area, item, kind)
             if not ok then COOP.log('shop make_card failed: ' .. tostring(err)) end
+        elseif item.s then
+            -- prices can change while the card sits in the shop (discount vouchers, inflation)
+            if item.s.cost ~= nil then c.cost = item.s.cost end
+            if item.s.sell_cost ~= nil then c.sell_cost = item.s.sell_cost end
         end
         keep[item.uid] = true
     end

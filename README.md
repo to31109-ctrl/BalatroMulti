@@ -8,6 +8,7 @@ A co-operative multiplayer mod for Balatro. One shared run for 2 to 4 friends:
 - **Shared shop.** The shop has `players x` the normal number of cards and booster packs. Anyone can buy or reroll; the item goes to the buyer and the money leaves the shared wallet. Everyone sees purchases in real time.
 - **Voting.** Playing or skipping a blind is a majority vote. A tie is decided by a coin flip. Leaving the shop requires everyone to press *Next Round*.
 - **Host picks the deck and stake**, and whether the first player rotates each blind or stays fixed.
+- **Shared economy:** shop/economy vouchers and jokers owned by anyone (Overstock, Clearance Sale, Reroll Surplus, Chaos the Clown, Seed Money, Credit Card, Hone/Glow Up, Merchant vouchers) apply to the shared shop and wallet for the whole team.
 - **Personal stuff stays personal:** everyone has their own deck, hand, discards, jokers, consumables and vouchers.
 - **Relay mode.** A tiny Cloudflare Worker in `relay/` (deployed, address in `mod/relay.txt`) lets anyone host with no router involvement at all. *Hosting via* in the CO-OP menu: **Auto** (default: direct connection through UPnP, relay only if the router refuses), **Relay** (5-letter room code, works anywhere, adds roughly 0.3 s of delay because Cloudflare's rooms are not hosted in Africa), or **Direct** (lowest ping, needs UPnP).
 - **Join codes, no port forwarding.** The host's game opens the port on the router automatically (UPnP) and shows a short code like `7B26J-FWNUT`; friends type the code. No Steam networking.

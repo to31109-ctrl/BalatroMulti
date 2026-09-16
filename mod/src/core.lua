@@ -743,6 +743,10 @@ COOP.host_handlers.save_req = function(player, msg)
     COOP.broadcast({ t = 'do_save', turn = COOP.saves.turn_meta() })
 end
 
+COOP.host_handlers.econ = function(player, msg)
+    if COOP.econ then COOP.econ.host_on_report(player, msg) end
+end
+
 COOP.host_handlers.chat = function(player, msg)
     COOP.broadcast({ t = 'toast', text = player.name .. ': ' .. tostring(msg.text):sub(1, 60) })
 end
@@ -759,6 +763,7 @@ function COOP.on_player_left(p)
     run.votes[p.id] = nil
     run.ready[p.id] = nil
     run.phase[p.id] = nil
+    if COOP.econ then COOP.econ.on_player_left(p.id) end
     if run.round_active and run.turn.active == p.id then
         COOP.host_handlers.turn_done(p, { chips = run.chips })
     end
@@ -940,7 +945,9 @@ function COOP.apply_run_mods(loaded)
         G.GAME.dollars = (G.GAME.dollars or 0) * n
         G.GAME.shop = G.GAME.shop or { joker_max = 2 }
         G.GAME.shop.joker_max = (G.GAME.shop.joker_max or 2) * n
+        G.GAME.coop_base_joker_max = G.GAME.shop.joker_max
     end
+    if COOP.econ then COOP.econ.reset() end
     G.GAME.coop_players = n
     if not COOP.is_host() then
         G.GAME.modifiers.no_interest = true
@@ -1157,6 +1164,11 @@ COOP.client_handlers.round_result = function(msg)
     end
 end
 
+COOP.client_handlers.econ_fx = function(msg)
+    if not COOP.active or COOP.is_host() then return end
+    if type(msg.bankrupt_at) == 'number' then G.GAME.bankrupt_at = msg.bankrupt_at end
+end
+
 COOP.client_handlers.reroll_fx = function(msg)
     if not COOP.active or not G.jokers or not G.jokers.cards then return end
     for i = 1, #G.jokers.cards do
@@ -1220,6 +1232,7 @@ function COOP.update_run(dt)
     if COOP.spectate then COOP.spectate.update(dt) end
     if COOP.shop then COOP.shop.update(dt) end
     if COOP.saves then COOP.saves.update(dt) end
+    if COOP.econ then COOP.econ.update(dt) end
 end
 
 -- Player actions -------------------------------------------------------------
