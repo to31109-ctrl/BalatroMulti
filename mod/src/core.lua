@@ -20,6 +20,26 @@ COOP.starting = false
 
 -- Config persistence ----------------------------------------------------------
 function COOP.load_config()
+
+do
+    local orig_handler = love.errorhandler or love.errhand
+    local function coop_errorhandler(msg)
+        pcall(function()
+            local text = 'CRASH: ' .. tostring(msg)
+            COOP.log(text)
+            COOP.log('CRASH traceback: ' .. tostring(debug.traceback()):sub(1, 1500):gsub('\n', ' | '))
+            -- push the last lines to the host right now, before the game dies
+            if COOP.mode == 'client' and COOP.client_obj then
+                COOP.client_obj:send({ t = 'rlog', line = text })
+                if COOP.client_obj.conn and COOP.client_obj.conn.flush then COOP.client_obj.conn:flush() end
+                if COOP.client_obj.conn and COOP.client_obj.conn.sock and COOP.client_obj.conn.sock.flush then COOP.client_obj.conn.sock:flush() end
+            end
+        end)
+        if orig_handler then return orig_handler(msg) end
+    end
+    love.errorhandler = coop_errorhandler
+    love.errhand = coop_errorhandler
+end
     local ok, data = pcall(love.filesystem.read, 'coop_config.json')
     if ok and data and data ~= '' then
         local ok2, cfg = pcall(json.decode, data)
@@ -382,10 +402,20 @@ end
 function COOP.diag_update(dt)
     local d = COOP.diag
     local now = love.timer.getTime()
-    -- stall detection (any peer): a frame longer than 250 ms
-    if dt > 0.25 and now - d.stall_logged_at > 5 then
+    -- window focus changes (a game in the background gets throttled by Windows)
+    local focused = love.window and love.window.hasFocus and love.window.hasFocus()
+    if focused ~= d.focused then
+        d.focused = focused
+        if d.focus_known then COOP.log('window ' .. (focused and 'focused' or 'LOST FOCUS (game may be throttled)')) end
+        d.focus_known = true
+    end
+    -- frame spikes (any peer): report where the time went
+    if dt > 0.1 and now - d.stall_logged_at > 3 then
         d.stall_logged_at = now
-        COOP.log(string.format('stall: frame took %.0f ms (state %s)', dt * 1000, tostring(G.STATE)))
+        local q = G.E_MANAGER and G.E_MANAGER.queues and G.E_MANAGER.queues.base
+        COOP.log(string.format('stall: frame %.0f ms, co-op part %.1f ms, events queued %d, state %s, focus %s, spectating %s, my turn %s',
+            dt * 1000, COOP.perf.last or 0, q and #q or -1, tostring(G.STATE), tostring(focused),
+            tostring(COOP.spectate and COOP.spectate.target), tostring(COOP.is_my_turn())))
     end
     -- periodic stats
     if now - d.stats_at > 10 then
@@ -446,6 +476,7 @@ function COOP.update(dt)
     pcall(COOP.diag_update, dt)
     -- performance watchdog: log when the mod itself eats a frame (at most every 5 s)
     local spent = (love.timer.getTime() - t0) * 1000
+    COOP.perf.last = spent
     if spent > COOP.perf.worst then COOP.perf.worst = spent end
     if spent > 25 and t0 - COOP.perf.slow_logged_at > 5 then
         COOP.perf.slow_logged_at = t0
@@ -1223,3 +1254,23 @@ function COOP.on_local_dollars(mod)
 end
 
 COOP.load_config()
+
+do
+    local orig_handler = love.errorhandler or love.errhand
+    local function coop_errorhandler(msg)
+        pcall(function()
+            local text = 'CRASH: ' .. tostring(msg)
+            COOP.log(text)
+            COOP.log('CRASH traceback: ' .. tostring(debug.traceback()):sub(1, 1500):gsub('\n', ' | '))
+            -- push the last lines to the host right now, before the game dies
+            if COOP.mode == 'client' and COOP.client_obj then
+                COOP.client_obj:send({ t = 'rlog', line = text })
+                if COOP.client_obj.conn and COOP.client_obj.conn.flush then COOP.client_obj.conn:flush() end
+                if COOP.client_obj.conn and COOP.client_obj.conn.sock and COOP.client_obj.conn.sock.flush then COOP.client_obj.conn.sock:flush() end
+            end
+        end)
+        if orig_handler then return orig_handler(msg) end
+    end
+    love.errorhandler = coop_errorhandler
+    love.errhand = coop_errorhandler
+end
