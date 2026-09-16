@@ -146,8 +146,30 @@ function COOP.reset_state()
     if COOP.ui and COOP.ui.remove_hud then pcall(COOP.ui.remove_hud) end
 end
 
-function COOP.start_host(port)
+function COOP.start_host(port, transport)
     COOP.leave(true)
+    transport = transport or COOP.cfg.transport or 'relay'
+    if transport == 'relay' and not COOP.relay.available() then transport = 'direct' end
+    COOP.transport = transport
+    if transport == 'relay' then
+        COOP.status = 'Connecting to the relay...'
+        local h, err = COOP.relay.host(COOP.relay.url)
+        if not h then
+            COOP.status = 'Relay unavailable (' .. tostring(err) .. '). Try Direct hosting.'
+            COOP.log(COOP.status)
+            return false, err
+        end
+        COOP.mode = 'host'
+        COOP.host_obj = h
+        COOP.me.id = 1
+        COOP.me.name = COOP.cfg.name
+        COOP.players = { { id = 1, name = COOP.cfg.name, conn = nil } }
+        COOP.lobby.started = false
+        COOP.host_info = { port = 0, lan_ip = net.local_ip(), code = h.code, relay = true }
+        COOP.status = 'Relay room open. Share the JOIN CODE with your friends (works anywhere, no router setup).'
+        COOP.log('hosting via relay, room ' .. tostring(h.code))
+        return true
+    end
     port = tonumber(port) or COOP.DEFAULT_PORT
     local h, err = net.host(port)
     if not h then
@@ -185,6 +207,29 @@ end
 function COOP.join(ip, port)
     COOP.leave(true)
     ip = tostring(ip or ''):gsub('%s+', '')
+    local relay_code = ip:upper():gsub('[^%w]', '')
+    if #relay_code == 5 and not ip:find('%.') then
+        if not COOP.relay.available() then
+            COOP.status = 'That looks like a relay code, but this build has no relay address configured'
+            return false, 'no relay'
+        end
+        COOP.status = 'Connecting to relay room ' .. relay_code .. ' ...'
+        local c, err = COOP.relay.connect(COOP.relay.url, relay_code)
+        if not c then
+            COOP.status = 'Relay join failed: ' .. tostring(err)
+            COOP.log(COOP.status)
+            return false, err
+        end
+        COOP.mode = 'client'
+        COOP.transport = 'relay'
+        COOP.client_obj = c
+        COOP.me.name = COOP.cfg.name
+        COOP.players = {}
+        c:send({ t = 'hello', name = COOP.cfg.name, ver = COOP.VERSION, proto = COOP.PROTOCOL })
+        COOP.status = 'Connected to relay, waiting for host...'
+        COOP.log('joined relay room ' .. relay_code)
+        return true
+    end
     if COOP.upnp.looks_like_code(ip) then
         local cip, cport = COOP.upnp.decode_code(ip)
         if not cip then
@@ -216,7 +261,7 @@ end
 
 function COOP.leave(silent)
     if COOP.host_obj then
-        pcall(COOP.upnp.close_port)
+        if COOP.transport ~= 'relay' then pcall(COOP.upnp.close_port) end
         COOP.broadcast({ t = 'kick', reason = 'Host closed the lobby' })
         for _, p in ipairs(COOP.players) do
             if p.conn then p.conn:flush() end

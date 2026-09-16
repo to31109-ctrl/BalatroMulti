@@ -1,0 +1,2 @@
+# Relay address (Cloudflare Worker). Leave commented out until the relay is deployed, e.g.:
+# ws://balatro-coop-relay.<your-account>.workers.dev/ws

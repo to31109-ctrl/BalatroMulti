@@ -72,6 +72,10 @@ function ui.open_main()
             create_text_input({ w = 4, max_length = 16, prompt_text = 'Name', ref_table = COOP.cfg, ref_value = 'name', extended_corpus = true, coop_zero = true }),
         }),
         row({ text('Keep the same name: saved co-op runs are matched to players by name.', 0.25, G.C.ORANGE) }),
+        COOP.relay.available() and row({
+            { n = G.UIT.C, config = { align = 'cm', minw = 2.2 }, nodes = { text('Hosting via', 0.35, G.C.WHITE) } },
+            create_option_cycle({ options = { 'Relay (no router setup)', 'Direct (UPnP)' }, current_option = (COOP.cfg.transport == 'direct') and 2 or 1, opt_callback = 'coop_change_transport', w = 4.2, colour = G.C.RED, scale = 0.8 }),
+        }) or nil,
         row({ UIBox_button({ button = 'coop_host_click', label = { 'HOST NEW RUN' }, colour = G.C.BLUE, minw = 5, minh = 0.9 }) }),
         row({ UIBox_button({ button = 'coop_load_click', label = { 'LOAD SAVED RUN' }, colour = G.C.ORANGE, minw = 5, minh = 0.9 }) }),
         row({ UIBox_button({ button = 'coop_join_click', label = { 'JOIN GAME' }, colour = G.C.GREEN, minw = 5, minh = 0.9 }) }),
@@ -152,7 +156,7 @@ function ui.open_join()
     ui.screen = 'join'
     overlay({
         row({ text('JOIN A CO-OP RUN', 0.6, G.C.GOLD) }),
-        row({ text('Type the JOIN CODE the host sees in their lobby (or an IP address).', 0.27, G.C.UI.TEXT_LIGHT) }),
+        row({ text('Type the JOIN CODE the host sees in their lobby (relay or direct code, or an IP address).', 0.27, G.C.UI.TEXT_LIGHT) }),
         row({
             { n = G.UIT.C, config = { align = 'cm', minw = 2 }, nodes = { text('Code / IP', 0.4, G.C.WHITE) } },
             create_text_input({ w = 4.5, max_length = 24, prompt_text = 'Join code', ref_table = COOP.cfg, ref_value = 'ip', extended_corpus = true, coop_zero = true }),
@@ -244,6 +248,11 @@ G.FUNCS.coop_delete_save = function(e)
     local meta = e.config.ref_table
     if meta then COOP.saves.delete(meta.sid) end
     ui.open_load_list()
+end
+
+G.FUNCS.coop_change_transport = function(args)
+    COOP.cfg.transport = (args.to_key == 2) and 'direct' or 'relay'
+    COOP.save_config()
 end
 
 G.FUNCS.coop_copy_code = function(e)
@@ -423,7 +432,10 @@ end
 local function lobby_vars()
     ui.vars.status = COOP.status or ''
     local hi = COOP.host_info
-    if hi then
+    if hi and hi.relay then
+        ui.vars.code = hi.code or '?'
+        ui.vars.code_hint = 'Relay room: friends type this code anywhere in the world. No router setup needed.'
+    elseif hi then
         ui.vars.code = hi.code or hi.lan_code or '?'
         if hi.code and not hi.upnp_error then
             ui.vars.code_hint = 'Works over the internet. Same-network friends can also use LAN code ' .. tostring(hi.lan_code) .. ' (IP ' .. tostring(hi.lan_ip) .. ':' .. tostring(hi.port) .. ')'
