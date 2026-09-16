@@ -418,8 +418,28 @@ function COOP.host_check_blind_ready()
     end
     -- everyone drew their hand for the new blind: start turns
     run.phase = {}
-    run.round_no = run.round_no + 1
     run.round_active = true
+    local rt = run.restore_turn
+    run.restore_turn = nil
+    if rt and rt.order and rt.active then
+        -- continuing a blind that was saved mid-way: same order, same seat, same team score
+        local order, complete = {}, true
+        for _, name in ipairs(rt.order) do
+            local p = COOP.get_player_by_name(name)
+            if p then order[#order + 1] = p.id else complete = false end
+        end
+        local active = COOP.get_player_by_name(rt.active)
+        if complete and active then
+            run.round_no = rt.round_no or run.round_no
+            run.turn.order = order
+            run.turn.idx = rt.idx or 1
+            run.chips = tonumber(rt.chips) or 0
+            COOP.log('restored turn: active=' .. rt.active .. ' idx=' .. tostring(run.turn.idx) .. ' chips=' .. tostring(run.chips))
+            COOP.broadcast({ t = 'turn', active = active.id, order = order, idx = run.turn.idx, chips = run.chips })
+            return
+        end
+    end
+    run.round_no = run.round_no + 1
     local ids = {}
     for _, p in ipairs(COOP.players) do ids[#ids + 1] = p.id end
     local order = {}
@@ -506,6 +526,11 @@ end
 
 COOP.host_handlers.reroll = function(player, msg)
     if COOP.shop and COOP.shop.host_on_reroll then COOP.shop.host_on_reroll(player, msg) end
+end
+
+COOP.host_handlers.save_req = function(player, msg)
+    if player.id ~= COOP.me.id or not COOP.active then return end
+    COOP.broadcast({ t = 'do_save', turn = COOP.saves.turn_meta() })
 end
 
 COOP.host_handlers.chat = function(player, msg)
@@ -613,6 +638,13 @@ COOP.client_handlers.player_left = function(msg)
     end
 end
 
+COOP.client_handlers.do_save = function(msg)
+    if not COOP.active or not COOP.saves then return end
+    COOP.saves.save_now('manual', msg.turn)
+    COOP.toast('Co-op run saved' .. (msg.turn and ' (mid-blind)' or ''), G.C.GREEN, 2.5)
+    pcall(play_sound, 'coin1')
+end
+
 COOP.client_handlers.toast = function(msg)
     COOP.toast(tostring(msg.text), G.C.WHITE, 3)
 end
@@ -633,6 +665,9 @@ COOP.client_handlers.start = function(msg)
     COOP.lobby.turn_order = msg.turn_order or COOP.lobby.turn_order
     COOP.active = true
     if COOP.saves then COOP.saves.last_save_state = nil end
+    if msg.load and COOP.is_host() and COOP.load_meta and COOP.load_meta.turn then
+        COOP.run.restore_turn = COOP.load_meta.turn
+    end
     if msg.load then
         COOP.start_local_run_loaded(msg)
     else

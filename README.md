@@ -10,7 +10,8 @@ A co-operative multiplayer mod for Balatro. One shared run for 2 to 4 friends:
 - **Host picks the deck and stake**, and whether the first player rotates each blind or stays fixed.
 - **Personal stuff stays personal:** everyone has their own deck, hand, discards, jokers, consumables and vouchers.
 - **Join codes, no port forwarding.** The host's game opens the port on the router automatically (UPnP) and shows a short code like `7B26J-FWNUT`; friends type the code. No Steam networking.
-- **Save & load.** Runs save automatically at every shop and blind select. The host picks *Load saved run*, friends join with the code using the same name as before, and everyone gets their own deck, jokers, hand levels and vouchers back.
+- **Save & load.** Runs save automatically at every shop and blind select, and the host can save at any moment (even mid-boss) from the Escape menu with *Save co-op run*. The host picks *Load saved run*, friends join with the code using the same name as before, and everyone resumes exactly where they were: same seat, remaining hands, team score, deck, jokers, hand levels and vouchers.
+- **Copy / paste codes.** A COPY button next to the join code and a PASTE button on the join screen.
 - **Auto-updating launcher.** Friends install once; the desktop shortcut checks GitHub for a new version before every launch.
 
 ## Install (for players)

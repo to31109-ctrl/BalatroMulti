@@ -86,11 +86,7 @@ local function make_mirror(src, type_)
         { card_limit = limit, type = type_, highlight_limit = 0, card_w = src.card_w })
     a.config.temp_limit = src.config.temp_limit or limit
     a.coop_spectate = true
-    -- no "x/y" card counter on the mirror (the real areas already draw theirs)
-    a.children.area_uibox = UIBox({
-        definition = { n = G.UIT.ROOT, config = { align = 'cm', colour = G.C.CLEAR }, nodes = {} },
-        config = { align = 'cm', parent = a },
-    })
+    -- the mirror draws its own box and "x/y" counter (the real, hidden areas draw nothing)
     a:hard_set_T(src.T.x, src.T.y, src.T.w, src.T.h)
     return a
 end

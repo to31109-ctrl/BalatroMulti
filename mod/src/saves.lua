@@ -24,6 +24,13 @@ end
 
 -- Build the same table the base game writes to save.jkr
 local function build_save_table()
+    -- while spectating, the HUD shows the other player's hands/discards: save our own
+    local spec = COOP.spectate
+    local shown_hands, shown_discards
+    if spec and spec.saved and G.GAME.current_round then
+        shown_hands, shown_discards = G.GAME.current_round.hands_left, G.GAME.current_round.discards_left
+        G.GAME.current_round.hands_left, G.GAME.current_round.discards_left = spec.saved.hands, spec.saved.discards
+    end
     local cardAreas = {}
     for k, v in pairs(G) do
         if type(v) == 'table' and v.is and v:is(CardArea) and not v.coop_spectate then
@@ -38,7 +45,7 @@ local function build_save_table()
             if ser then tags[k] = ser end
         end
     end
-    return recursive_table_cull({
+    local t = recursive_table_cull({
         cardAreas = cardAreas,
         tags = tags,
         GAME = G.GAME,
@@ -47,6 +54,20 @@ local function build_save_table()
         BACK = G.GAME.selected_back:save(),
         VERSION = G.VERSION,
     })
+    if shown_hands ~= nil then
+        G.GAME.current_round.hands_left, G.GAME.current_round.discards_left = shown_hands, shown_discards
+    end
+    return t
+end
+
+-- Turn state to store with a mid-blind save (host builds it, everyone stores it)
+function saves.turn_meta()
+    local run = COOP.run
+    if not run or not run.round_active or not run.turn.active then return nil end
+    local order = {}
+    for _, id in ipairs(run.turn.order) do order[#order + 1] = COOP.player_name(id) end
+    local chips = COOP.is_my_turn() and G.GAME.chips or run.chips
+    return { active = COOP.player_name(run.turn.active), order = order, idx = run.turn.idx, chips = chips, round_no = run.round_no }
 end
 
 function saves.write_meta(sid, extra)
@@ -55,6 +76,8 @@ function saves.write_meta(sid, extra)
     local meta = {
         sid = sid,
         players = names,
+        turn = extra and extra.turn or nil,
+        mid_blind = (extra and extra.turn) ~= nil,
         host = COOP.player_name(1),
         deck = COOP.run.deck, stake = COOP.run.stake, turn_order = COOP.run.turn_order, seed = COOP.run.seed,
         ante = G.GAME.round_resets.ante, round = G.GAME.round, dollars = G.GAME.dollars,
@@ -68,14 +91,14 @@ function saves.write_meta(sid, extra)
 end
 
 -- Save this player's part of the run (called at safe points: shop start, blind select)
-function saves.save_now(reason)
+function saves.save_now(reason, turn)
     local run = COOP.run
     if not COOP.active or not run or not run.sid or not G.GAME or G.STAGE ~= G.STAGES.RUN then return end
     local ok, err = pcall(function()
         love.filesystem.createDirectory(saves.session_dir(run.sid))
         local t = build_save_table()
         compress_and_save(saves.player_file(run.sid, COOP.me.name), t)
-        saves.write_meta(run.sid)
+        saves.write_meta(run.sid, { turn = turn })
     end)
     if ok then
         COOP.log('co-op save written (' .. tostring(reason) .. ') for ' .. COOP.me.name)

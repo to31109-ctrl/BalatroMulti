@@ -112,7 +112,11 @@ function ui.open_host_lobby()
     end
     local contents = {
         row({ text(meta and 'HOSTING A SAVED CO-OP RUN' or 'HOSTING A CO-OP RUN', 0.5, G.C.GOLD) }, { padding = 0.02 }),
-        row({ text('JOIN CODE: ', 0.45, G.C.WHITE), text(nil, 0.6, G.C.GOLD, ui.vars, 'code') }, { padding = 0.02 }),
+        row({
+            text('JOIN CODE: ', 0.45, G.C.WHITE), text(nil, 0.6, G.C.GOLD, ui.vars, 'code'),
+            { n = G.UIT.C, config = { align = 'cm', minw = 0.3 }, nodes = {} },
+            UIBox_button({ button = 'coop_copy_code', label = { 'COPY' }, colour = G.C.BLUE, minw = 1.3, minh = 0.6, scale = 0.35, col = true }),
+        }, { padding = 0.02 }),
         row({ text(nil, 0.25, G.C.UI.TEXT_LIGHT, ui.vars, 'code_hint') }, { padding = 0.02 }),
         row({ text(nil, 0.25, G.C.UI.TEXT_LIGHT, ui.vars, 'status') }, { padding = 0.02 }),
     }
@@ -134,7 +138,7 @@ function ui.open_load_list()
     end
     for i, meta in ipairs(list) do
         if i > 8 then break end
-        local label1 = tostring(meta.saved_at) .. '   Ante ' .. tostring(meta.ante) .. '  Round ' .. tostring(meta.round) .. '   ' .. tostring(meta.deck)
+        local label1 = tostring(meta.saved_at) .. '   Ante ' .. tostring(meta.ante) .. '  Round ' .. tostring(meta.round) .. '   ' .. tostring(meta.deck) .. (meta.mid_blind and '   (mid-blind)' or '')
         local label2 = 'Players: ' .. table.concat(meta.players or {}, ', ')
         rows[#rows + 1] = row({
             UIBox_button({ button = 'coop_pick_save', label = { label1, label2 }, colour = COOP.saves.has_player_file(meta.sid, COOP.cfg.name) and G.C.BLUE or G.C.UI.BACKGROUND_INACTIVE, minw = 8, minh = 0.9, scale = 0.32, ref_table = meta }),
@@ -152,6 +156,8 @@ function ui.open_join()
         row({
             { n = G.UIT.C, config = { align = 'cm', minw = 2 }, nodes = { text('Code / IP', 0.4, G.C.WHITE) } },
             create_text_input({ w = 4.5, max_length = 24, prompt_text = 'Join code', ref_table = COOP.cfg, ref_value = 'ip', extended_corpus = true, coop_zero = true }),
+            { n = G.UIT.C, config = { align = 'cm', minw = 0.2 }, nodes = {} },
+            UIBox_button({ button = 'coop_paste_code', label = { 'PASTE' }, colour = G.C.BLUE, minw = 1.4, minh = 0.6, scale = 0.35, col = true }),
         }),
         row({
             { n = G.UIT.C, config = { align = 'cm', minw = 2 }, nodes = { text('Port', 0.4, G.C.WHITE) } },
@@ -238,6 +244,45 @@ G.FUNCS.coop_delete_save = function(e)
     local meta = e.config.ref_table
     if meta then COOP.saves.delete(meta.sid) end
     ui.open_load_list()
+end
+
+G.FUNCS.coop_copy_code = function(e)
+    local hi = COOP.host_info
+    local code = hi and (hi.code or hi.lan_code)
+    if not code then return end
+    local ok = pcall(love.system.setClipboardText, code)
+    COOP.toast(ok and ('Copied ' .. code .. ' to clipboard') or 'Could not access the clipboard', G.C.GREEN, 2)
+    pcall(play_sound, 'button')
+end
+
+G.FUNCS.coop_paste_code = function(e)
+    local ok, clip = pcall(love.system.getClipboardText)
+    clip = ok and tostring(clip or '') or ''
+    clip = clip:gsub('^%s+', ''):gsub('%s+$', '')
+    if clip == '' then
+        COOP.toast('Clipboard is empty', G.C.RED, 2)
+        return
+    end
+    -- keep only the first token (a code or an IP[:port])
+    clip = clip:match('^(%S+)') or clip
+    local host, port = clip:match('^([%d%.]+):(%d+)$')
+    if host and port then
+        COOP.cfg.ip, COOP.cfg.port = host, port
+    else
+        COOP.cfg.ip = clip:sub(1, 24)
+    end
+    COOP.save_config()
+    ui.open_join() -- rebuild so the text box shows the pasted value
+    COOP.toast('Pasted ' .. COOP.cfg.ip, G.C.GREEN, 2)
+end
+
+G.FUNCS.coop_save_click = function(e)
+    if not COOP.active then return end
+    if not COOP.is_host() then
+        COOP.toast('Only the host can save the run', G.C.RED, 2)
+        return
+    end
+    COOP.send_to_host({ t = 'save_req' })
 end
 
 G.FUNCS.coop_join_click = function(e)

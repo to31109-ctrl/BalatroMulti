@@ -39,6 +39,19 @@ wrap(_G, 'create_UIBox_main_menu_buttons', function(orig)
     return t
 end)
 
+-- Escape/options menu: host gets a "Save co-op run" button ------------------------
+wrap(_G, 'create_UIBox_options', function(orig)
+    local t = orig()
+    if COOP.active and G.STAGE == G.STAGES.RUN then
+        pcall(function()
+            local contents = t.nodes[1].nodes[1].nodes[1].nodes
+            local label = COOP.is_host() and 'SAVE CO-OP RUN' or 'CO-OP RUN (host saves)'
+            table.insert(contents, 1, UIBox_button({ id = 'coop_save_button', button = 'coop_save_click', label = { label }, colour = COOP.is_host() and G.C.GREEN or G.C.UI.BACKGROUND_INACTIVE, minw = 5 }))
+        end)
+    end
+    return t
+end)
+
 -- Text input: allow typing a real "0" in co-op fields (base game maps 0 -> o) ---
 wrap(G.FUNCS, 'text_input_key', function(orig, args)
     local hook = G.CONTROLLER and G.CONTROLLER.text_input_hook
