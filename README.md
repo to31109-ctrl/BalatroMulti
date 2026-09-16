@@ -50,7 +50,7 @@ Link the mod folder into the Mods directory instead of copying, so edits are liv
 mklink /J "%APPDATA%\Balatro\Mods\BalatroCoop" "D:\path\to\BalatroMulti\mod"
 ```
 
-Logs: `%APPDATA%\Balatro\coop.log` (mod) and `%APPDATA%\Balatro\Mods\lovely\log` (injector). Co-op saves live in `%APPDATA%\Balatro\coop_saves`.
+Logs: `%APPDATA%\Balatro\coop.log` (mod, own game), `%APPDATA%\Balatro\coop_players.log` (host only: every connected player's log lines, stats every 10 s, stalls) and `%APPDATA%\Balatro\Mods\lovely\log` (injector). Co-op saves live in `%APPDATA%\Balatro\coop_saves`.
 
 Set the environment variable `BALATRO_COOP_DEBUG=1` to enable the developer command channel (see `mod/src/debug.lua`); `BALATRO_COOP_AUTO=host|join` auto-opens a lobby, which makes it easy to test with two game instances on one PC.
 

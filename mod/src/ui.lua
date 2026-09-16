@@ -369,6 +369,8 @@ function ui.refresh_hud()
         else
             local tag = (p.id == COOP.me.id) and ' (you)' or ''
             if p.id == 1 then tag = tag .. ' [host]' end
+            local rtt = COOP.rtt_of and COOP.rtt_of(p.id)
+            if rtt and p.id ~= 1 then tag = tag .. ' ' .. tostring(rtt) .. 'ms' end
             v.name = p.name .. tag
             set_colour(v.colour, 1, 1, 1)
             if run.round_active then

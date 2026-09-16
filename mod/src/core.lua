@@ -278,6 +278,90 @@ end
 COOP.timers = { snapshot = 0, cursor = 0, shop = 0, hud = 0 }
 
 COOP.perf = { slow_logged_at = 0, worst = 0 }
+COOP.diag = { rlog_budget = 20, rlog_last_refill = 0, stats_at = 0, ping_at = 0, rtt = {}, stall_logged_at = 0 }
+
+-- Every log line written by a client is also sent to the host (throttled), so the host has
+-- all players' logs in %APPDATA%/Balatro/coop_players.log without anyone sending files.
+do
+    local base_log = COOP.log
+    COOP.log = function(msg, ...)
+        base_log(msg, ...)
+        if COOP.mode == 'client' and COOP.client_obj then
+            local d = COOP.diag
+            local now = love.timer and love.timer.getTime() or 0
+            if now - d.rlog_last_refill >= 1 then d.rlog_budget, d.rlog_last_refill = 20, now end
+            if d.rlog_budget > 0 then
+                d.rlog_budget = d.rlog_budget - 1
+                local line = tostring(msg)
+                if select('#', ...) > 0 then
+                    local ok, s = pcall(string.format, line, ...)
+                    if ok then line = s end
+                end
+                pcall(function() COOP.client_obj:send({ t = 'rlog', line = line:sub(1, 400) }) end)
+            end
+        end
+    end
+end
+
+local function players_log(name, line)
+    pcall(love.filesystem.append, 'coop_players.log', '[' .. os.date('%H:%M:%S') .. '] [' .. tostring(name) .. '] ' .. tostring(line) .. '\n')
+end
+
+function COOP.diag_update(dt)
+    local d = COOP.diag
+    local now = love.timer.getTime()
+    -- stall detection (any peer): a frame longer than 250 ms
+    if dt > 0.25 and now - d.stall_logged_at > 5 then
+        d.stall_logged_at = now
+        COOP.log(string.format('stall: frame took %.0f ms (state %s)', dt * 1000, tostring(G.STATE)))
+    end
+    -- periodic stats
+    if now - d.stats_at > 10 then
+        d.stats_at = now
+        local conn = COOP.client_obj and COOP.client_obj.conn
+        local line = string.format('stats: fps=%d avg_frame=%.1fms worst_coop=%.1fms state=%s', love.timer.getFPS(), love.timer.getAverageDelta() * 1000, COOP.perf.worst, tostring(G.STATE))
+        if conn then line = line .. string.format(' net_in=%dB net_out=%dB unsent=%dB', conn.bytes_in, conn.bytes_out, #conn.outbuf) end
+        if COOP.mode == 'host' and COOP.host_obj then
+            local tot_out, unsent = 0, 0
+            for _, c in ipairs(COOP.host_obj.conns) do tot_out = tot_out + c.bytes_out; unsent = unsent + #c.outbuf end
+            line = line .. string.format(' host_out=%dB unsent=%dB', tot_out, unsent)
+        end
+        COOP.perf.worst = 0
+        if COOP.active or COOP.mode then COOP.log(line) end
+        if COOP.mode == 'host' then players_log(COOP.me.name .. ' (host)', line) end
+    end
+    -- host pings everyone every 3 s and shares the round-trip times
+    if COOP.mode == 'host' and now - d.ping_at > 3 then
+        d.ping_at = now
+        for _, p in ipairs(COOP.players) do
+            if p.conn then p.conn:send({ t = 'ping', ts = now }) end
+        end
+        COOP.broadcast({ t = 'rtts', rtt = d.rtt })
+    end
+end
+
+COOP.host_handlers.rlog = function(player, msg)
+    players_log(player.name, msg.line)
+end
+
+COOP.host_handlers.pong = function(player, msg)
+    local rtt = math.floor(((love.timer.getTime() - (tonumber(msg.ts) or 0)) * 1000) + 0.5)
+    COOP.diag.rtt[tostring(player.id)] = rtt
+    player.rtt = rtt
+end
+
+COOP.client_handlers.ping = function(msg)
+    COOP.send_to_host({ t = 'pong', ts = msg.ts })
+end
+
+COOP.client_handlers.rtts = function(msg)
+    COOP.diag.rtt = msg.rtt or {}
+end
+
+function COOP.rtt_of(id)
+    local v = COOP.diag.rtt[tostring(id)] or COOP.diag.rtt[id]
+    return v
+end
 
 function COOP.update(dt)
     local t0 = love.timer.getTime()
@@ -287,6 +371,7 @@ function COOP.update(dt)
         COOP.client_obj:update(client_on_message, client_on_disconnect)
     end
     COOP.update_inner(dt)
+    pcall(COOP.diag_update, dt)
     -- performance watchdog: log when the mod itself eats a frame (at most every 5 s)
     local spent = (love.timer.getTime() - t0) * 1000
     if spent > COOP.perf.worst then COOP.perf.worst = spent end
@@ -341,6 +426,7 @@ COOP.host_handlers.hello = function(conn, msg)
     local player = { id = conn.id, name = name, conn = conn }
     COOP.players[#COOP.players + 1] = player
     COOP.log('player joined: ' .. name .. ' (#' .. conn.id .. ')')
+    players_log(name, '--- joined the lobby (v' .. tostring(msg.ver) .. ') ---')
     conn:send({ t = 'welcome', id = conn.id, name = name })
     COOP.broadcast_lobby()
     COOP.toast(name .. ' joined', G.C.GREEN)
