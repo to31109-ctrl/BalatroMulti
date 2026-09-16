@@ -959,12 +959,14 @@ end
 -- Player actions -------------------------------------------------------------
 function COOP.vote(choice)
     if not COOP.run then return end
+    if G.STATE ~= G.STATES.BLIND_SELECT then return end
     COOP.run.my_vote = choice
     COOP.send_to_host({ t = 'vote', choice = choice })
 end
 
 function COOP.ready_for_next_round()
     if not COOP.run then return end
+    if not G.shop then return end
     COOP.run.my_ready = true
     COOP.send_to_host({ t = 'ready' })
 end
