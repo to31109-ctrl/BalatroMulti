@@ -3,7 +3,7 @@ local ui = {}
 COOP.ui = ui
 
 ui.screen = nil
-ui.vars = { status = '', deck = '', stake = '', order = '', title = '', slots = { { t = '' }, { t = '' }, { t = '' }, { t = '' } } }
+ui.vars = { status = '', deck = '', stake = '', order = '', title = '', code = '', code_hint = '', slots = { { t = '' }, { t = '' }, { t = '' }, { t = '' } } }
 ui.hud = nil
 ui.hud_vars = { info = { t = '' } }
 for i = 1, COOP.MAX_PLAYERS do
@@ -71,8 +71,10 @@ function ui.open_main()
             text('Your name: ', 0.4, G.C.WHITE),
             create_text_input({ w = 4, max_length = 16, prompt_text = 'Name', ref_table = COOP.cfg, ref_value = 'name', extended_corpus = true, coop_zero = true }),
         }),
-        row({ UIBox_button({ button = 'coop_host_click', label = { 'HOST GAME' }, colour = G.C.BLUE, minw = 5, minh = 1 }) }),
-        row({ UIBox_button({ button = 'coop_join_click', label = { 'JOIN GAME' }, colour = G.C.GREEN, minw = 5, minh = 1 }) }),
+        row({ text('Keep the same name: saved co-op runs are matched to players by name.', 0.25, G.C.ORANGE) }),
+        row({ UIBox_button({ button = 'coop_host_click', label = { 'HOST NEW RUN' }, colour = G.C.BLUE, minw = 5, minh = 0.9 }) }),
+        row({ UIBox_button({ button = 'coop_load_click', label = { 'LOAD SAVED RUN' }, colour = G.C.ORANGE, minw = 5, minh = 0.9 }) }),
+        row({ UIBox_button({ button = 'coop_join_click', label = { 'JOIN GAME' }, colour = G.C.GREEN, minw = 5, minh = 0.9 }) }),
         row({ text(nil, 0.3, G.C.UI.TEXT_LIGHT, ui.vars, 'status') }),
     }, 'coop_close')
 end
@@ -84,40 +86,77 @@ function ui.open_host_lobby()
     for i, n in ipairs(decks) do if n == COOP.lobby.deck then deck_idx = i end end
     local stakes = stake_names()
     local order_idx = COOP.lobby.turn_order == 'fixed' and 2 or 1
-    overlay({
-        row({ text('HOSTING A CO-OP RUN', 0.6, G.C.GOLD) }),
-        row({ text(nil, 0.32, G.C.UI.TEXT_LIGHT, ui.vars, 'status') }),
-        row({ text('Friends join with your IP (LAN, Hamachi/Radmin/Tailscale, or a forwarded port).', 0.27, G.C.UI.TEXT_LIGHT) }),
-        row({
-            { n = G.UIT.C, config = { align = 'cm', minw = 2 }, nodes = { text('Deck', 0.4, G.C.WHITE) } },
-            create_option_cycle({ options = decks, current_option = deck_idx, opt_callback = 'coop_change_deck', w = 4.5, colour = G.C.RED }),
-        }),
-        row({
-            { n = G.UIT.C, config = { align = 'cm', minw = 2 }, nodes = { text('Stake', 0.4, G.C.WHITE) } },
-            create_option_cycle({ options = stakes, current_option = COOP.lobby.stake or 1, opt_callback = 'coop_change_stake', w = 4.5, colour = G.C.RED }),
-        }),
-        row({
-            { n = G.UIT.C, config = { align = 'cm', minw = 2 }, nodes = { text('Turns', 0.4, G.C.WHITE) } },
-            create_option_cycle({ options = ORDER_OPTIONS, current_option = order_idx, opt_callback = 'coop_change_order', w = 4.5, colour = G.C.RED }),
-        }),
-        row({ text('Players', 0.45, G.C.GOLD) }),
-        row(player_rows(), { align = 'cm', colour = G.C.L_BLACK, r = 0.1, padding = 0.1 }),
-        row({ UIBox_button({ button = 'coop_start_click', label = { 'START RUN' }, colour = G.C.GREEN, minw = 5, minh = 1 }) }),
-    }, 'coop_leave_click')
+    local meta = COOP.load_meta
+    local settings
+    if meta then
+        settings = {
+            row({ text('LOADING SAVED RUN', 0.4, G.C.ORANGE) }),
+            row({ text('Ante ' .. tostring(meta.ante) .. ', round ' .. tostring(meta.round) .. ', ' .. tostring(meta.deck) .. ', saved ' .. tostring(meta.saved_at), 0.3, G.C.WHITE) }),
+            row({ text('Required players (same names!): ' .. table.concat(meta.players or {}, ', '), 0.3, G.C.GOLD) }),
+        }
+    else
+        settings = {
+            row({
+                { n = G.UIT.C, config = { align = 'cm', minw = 1.6 }, nodes = { text('Deck', 0.35, G.C.WHITE) } },
+                create_option_cycle({ options = decks, current_option = deck_idx, opt_callback = 'coop_change_deck', w = 4.5, colour = G.C.RED, scale = 0.8 }),
+            }, { padding = 0.02 }),
+            row({
+                { n = G.UIT.C, config = { align = 'cm', minw = 1.6 }, nodes = { text('Stake', 0.35, G.C.WHITE) } },
+                create_option_cycle({ options = stakes, current_option = COOP.lobby.stake or 1, opt_callback = 'coop_change_stake', w = 4.5, colour = G.C.RED, scale = 0.8 }),
+            }, { padding = 0.02 }),
+            row({
+                { n = G.UIT.C, config = { align = 'cm', minw = 1.6 }, nodes = { text('Turns', 0.35, G.C.WHITE) } },
+                create_option_cycle({ options = ORDER_OPTIONS, current_option = order_idx, opt_callback = 'coop_change_order', w = 4.5, colour = G.C.RED, scale = 0.8 }),
+            }, { padding = 0.02 }),
+        }
+    end
+    local contents = {
+        row({ text(meta and 'HOSTING A SAVED CO-OP RUN' or 'HOSTING A CO-OP RUN', 0.5, G.C.GOLD) }, { padding = 0.02 }),
+        row({ text('JOIN CODE: ', 0.45, G.C.WHITE), text(nil, 0.6, G.C.GOLD, ui.vars, 'code') }, { padding = 0.02 }),
+        row({ text(nil, 0.25, G.C.UI.TEXT_LIGHT, ui.vars, 'code_hint') }, { padding = 0.02 }),
+        row({ text(nil, 0.25, G.C.UI.TEXT_LIGHT, ui.vars, 'status') }, { padding = 0.02 }),
+    }
+    for _, r in ipairs(settings) do contents[#contents + 1] = r end
+    contents[#contents + 1] = row({ text('Players', 0.4, G.C.GOLD) }, { padding = 0.02 })
+    contents[#contents + 1] = row(player_rows(), { align = 'cm', colour = G.C.L_BLACK, r = 0.1, padding = 0.05 })
+    contents[#contents + 1] = row({ UIBox_button({ button = 'coop_start_click', label = { meta and 'CONTINUE RUN' or 'START RUN' }, colour = G.C.GREEN, minw = 5, minh = 0.9 }) }, { padding = 0.02 })
+    overlay(contents, 'coop_leave_click')
+end
+
+function ui.open_load_list()
+    ui.screen = 'load'
+    local list = COOP.saves.list()
+    local rows = {}
+    rows[#rows + 1] = row({ text('LOAD A SAVED CO-OP RUN', 0.55, G.C.GOLD) })
+    rows[#rows + 1] = row({ text('Only the host loads a run. Everyone else joins with the code, using the same name as before.', 0.27, G.C.UI.TEXT_LIGHT) })
+    if #list == 0 then
+        rows[#rows + 1] = row({ text('No saved co-op runs yet. Runs save automatically at every shop and blind select.', 0.32, G.C.WHITE) })
+    end
+    for i, meta in ipairs(list) do
+        if i > 8 then break end
+        local label1 = tostring(meta.saved_at) .. '   Ante ' .. tostring(meta.ante) .. '  Round ' .. tostring(meta.round) .. '   ' .. tostring(meta.deck)
+        local label2 = 'Players: ' .. table.concat(meta.players or {}, ', ')
+        rows[#rows + 1] = row({
+            UIBox_button({ button = 'coop_pick_save', label = { label1, label2 }, colour = COOP.saves.has_player_file(meta.sid, COOP.cfg.name) and G.C.BLUE or G.C.UI.BACKGROUND_INACTIVE, minw = 8, minh = 0.9, scale = 0.32, ref_table = meta }),
+            UIBox_button({ button = 'coop_delete_save', label = { 'X' }, colour = G.C.RED, minw = 0.6, minh = 0.9, scale = 0.4, ref_table = meta, col = true }),
+        }, { padding = 0.03 })
+    end
+    overlay(rows, 'coop_back_to_main')
 end
 
 function ui.open_join()
     ui.screen = 'join'
     overlay({
         row({ text('JOIN A CO-OP RUN', 0.6, G.C.GOLD) }),
-        row({ text('Ask the host for their IP address. Type O for zero if needed, it is converted.', 0.27, G.C.UI.TEXT_LIGHT) }),
+        row({ text('Type the JOIN CODE the host sees in their lobby (or an IP address).', 0.27, G.C.UI.TEXT_LIGHT) }),
         row({
-            { n = G.UIT.C, config = { align = 'cm', minw = 2 }, nodes = { text('Host IP', 0.4, G.C.WHITE) } },
-            create_text_input({ w = 4.5, max_length = 24, prompt_text = 'IP address', ref_table = COOP.cfg, ref_value = 'ip', extended_corpus = true, coop_zero = true }),
+            { n = G.UIT.C, config = { align = 'cm', minw = 2 }, nodes = { text('Code / IP', 0.4, G.C.WHITE) } },
+            create_text_input({ w = 4.5, max_length = 24, prompt_text = 'Join code', ref_table = COOP.cfg, ref_value = 'ip', extended_corpus = true, coop_zero = true }),
         }),
         row({
             { n = G.UIT.C, config = { align = 'cm', minw = 2 }, nodes = { text('Port', 0.4, G.C.WHITE) } },
             create_text_input({ w = 2.5, max_length = 5, prompt_text = 'Port', ref_table = COOP.cfg, ref_value = 'port', extended_corpus = true, coop_zero = true }),
+            text('  (only used with an IP address)', 0.25, G.C.UI.TEXT_LIGHT),
         }),
         row({ UIBox_button({ button = 'coop_connect_click', label = { 'CONNECT' }, colour = G.C.GREEN, minw = 5, minh = 1 }) }),
         row({ text(nil, 0.3, G.C.UI.TEXT_LIGHT, ui.vars, 'status') }),
@@ -164,10 +203,41 @@ end
 
 G.FUNCS.coop_host_click = function(e)
     COOP.save_config()
+    COOP.load_meta = nil
     local ok = COOP.start_host(COOP.cfg.port)
     if ok then
         ui.open_host_lobby()
     end
+end
+
+G.FUNCS.coop_load_click = function(e)
+    COOP.save_config()
+    ui.open_load_list()
+end
+
+G.FUNCS.coop_pick_save = function(e)
+    local meta = e.config.ref_table
+    if not meta then return end
+    if not COOP.saves.has_player_file(meta.sid, COOP.cfg.name) then
+        COOP.toast('Your name "' .. COOP.cfg.name .. '" is not part of this save (players: ' .. table.concat(meta.players or {}, ', ') .. ')', G.C.RED, 5)
+        return
+    end
+    COOP.save_config()
+    local ok = COOP.start_host(COOP.cfg.port)
+    if ok then
+        COOP.load_meta = meta
+        COOP.lobby.deck = meta.deck or COOP.lobby.deck
+        COOP.lobby.stake = meta.stake or COOP.lobby.stake
+        COOP.lobby.turn_order = meta.turn_order or COOP.lobby.turn_order
+        COOP.broadcast_lobby()
+        ui.open_host_lobby()
+    end
+end
+
+G.FUNCS.coop_delete_save = function(e)
+    local meta = e.config.ref_table
+    if meta then COOP.saves.delete(meta.sid) end
+    ui.open_load_list()
 end
 
 G.FUNCS.coop_join_click = function(e)
@@ -305,6 +375,15 @@ end
 -- Per frame ------------------------------------------------------------------
 local function lobby_vars()
     ui.vars.status = COOP.status or ''
+    local hi = COOP.host_info
+    if hi then
+        ui.vars.code = hi.code or hi.lan_code or '?'
+        if hi.code and not hi.upnp_error then
+            ui.vars.code_hint = 'Works over the internet. Same-network friends can also use LAN code ' .. tostring(hi.lan_code) .. ' (IP ' .. tostring(hi.lan_ip) .. ':' .. tostring(hi.port) .. ')'
+        else
+            ui.vars.code_hint = 'LAN code: ' .. tostring(hi.lan_code) .. ' (IP ' .. tostring(hi.lan_ip) .. ':' .. tostring(hi.port) .. ')'
+        end
+    end
     ui.vars.deck = 'Deck: ' .. tostring(COOP.lobby.deck)
     local stakes = stake_names()
     ui.vars.stake = 'Stake: ' .. tostring(stakes[COOP.lobby.stake or 1] or COOP.lobby.stake)

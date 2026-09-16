@@ -161,17 +161,42 @@ function COOP.start_host(port)
     COOP.me.name = COOP.cfg.name
     COOP.players = { { id = 1, name = COOP.cfg.name, conn = nil } }
     COOP.lobby.started = false
-    COOP.status = 'Hosting on port ' .. tostring(port) .. '  |  Your LAN IP: ' .. tostring(net.local_ip())
+    local lan_ip = net.local_ip()
+    COOP.host_info = { port = port, lan_ip = lan_ip, lan_code = COOP.upnp.encode_code(lan_ip, port), code = nil, upnp_error = nil }
+    COOP.status = 'Opening the router port automatically (UPnP)...'
     COOP.log('hosting on port ' .. port)
+    local ok, ext, err = COOP.upnp.open_port(port, lan_ip)
+    if ok and ext then
+        COOP.host_info.code = COOP.upnp.encode_code(ext, port)
+        COOP.host_info.external_ip = ext
+        COOP.status = 'Port opened on your router. Share the JOIN CODE with your friends.'
+    else
+        COOP.host_info.upnp_error = err
+        local ext2 = COOP.upnp.public_ip_from_web()
+        if ext2 then
+            COOP.host_info.code = COOP.upnp.encode_code(ext2, port)
+            COOP.host_info.external_ip = ext2
+        end
+        COOP.status = 'Router did not open the port automatically (' .. tostring(err) .. '). Internet code may not work; LAN code works on the same network.'
+    end
     return true
 end
 
 function COOP.join(ip, port)
     COOP.leave(true)
     ip = tostring(ip or ''):gsub('%s+', '')
-    -- The Balatro text input turns "0" into "o"; undo that for addresses.
-    ip = ip:gsub('[oO]', '0')
-    port = tonumber((tostring(port or ''):gsub('[oO]', '0'))) or COOP.DEFAULT_PORT
+    if COOP.upnp.looks_like_code(ip) then
+        local cip, cport = COOP.upnp.decode_code(ip)
+        if not cip then
+            COOP.status = 'That join code is not valid'
+            return false, 'bad code'
+        end
+        ip, port = cip, cport
+    else
+        -- The Balatro text input turns "0" into "o"; undo that for addresses.
+        ip = ip:gsub('[oO]', '0')
+        port = tonumber((tostring(port or ''):gsub('[oO]', '0'))) or COOP.DEFAULT_PORT
+    end
     COOP.status = 'Connecting to ' .. ip .. ':' .. port .. ' ...'
     local c, err = net.connect(ip, port, 4)
     if not c then
@@ -191,6 +216,7 @@ end
 
 function COOP.leave(silent)
     if COOP.host_obj then
+        pcall(COOP.upnp.close_port)
         COOP.broadcast({ t = 'kick', reason = 'Host closed the lobby' })
         for _, p in ipairs(COOP.players) do
             if p.conn then p.conn:flush() end
@@ -203,6 +229,7 @@ function COOP.leave(silent)
     end
     local was_active = COOP.active
     if was_active then COOP.end_local_run_mods() end
+    COOP.load_meta = nil
     COOP.reset_state()
     if not silent then COOP.log('left co-op session') end
 end
@@ -507,11 +534,33 @@ end
 function COOP.host_start_game()
     if COOP.mode ~= 'host' then return end
     if COOP.lobby.started then return end
+    local meta = COOP.load_meta
+    if meta then
+        local ok, missing, extra = COOP.saves.lobby_matches(meta)
+        if not ok then
+            local parts = {}
+            if #missing > 0 then parts[#parts + 1] = 'missing: ' .. table.concat(missing, ', ') end
+            if #extra > 0 then parts[#parts + 1] = 'not in this save: ' .. table.concat(extra, ', ') end
+            COOP.status = 'Cannot load: ' .. table.concat(parts, ' | ')
+            COOP.toast(COOP.status, G.C.RED, 4)
+            return
+        end
+        COOP.lobby.started = true
+        local msg = {
+            t = 'start', load = true, sid = meta.sid,
+            seed = meta.seed, deck = meta.deck, stake = meta.stake, turn_order = meta.turn_order or COOP.lobby.turn_order,
+            players = COOP.player_summaries(),
+        }
+        COOP.log('loading co-op run ' .. tostring(meta.sid) .. ' players=' .. #msg.players)
+        COOP.broadcast(msg)
+        return
+    end
     COOP.lobby.started = true
     local seed = random_string(8, math.random() * 1000 + (love.timer and love.timer.getTime() or 0))
     local msg = {
         t = 'start',
         seed = seed,
+        sid = seed .. '-' .. os.date('%Y%m%d-%H%M%S'),
         deck = COOP.lobby.deck,
         stake = COOP.lobby.stake,
         turn_order = COOP.lobby.turn_order,
@@ -577,10 +626,36 @@ COOP.client_handlers.start = function(msg)
         chips = 0, votes = {}, ready = {}, phase = {},
         blind_ready_sent = false, won_sent = false, my_vote = nil, my_ready = false,
         remote_blinds = nil, pending_next_round = false, pending_decision = nil,
+        sid = msg.sid, loaded = msg.load and true or false,
     }
     COOP.lobby.turn_order = msg.turn_order or COOP.lobby.turn_order
     COOP.active = true
-    COOP.start_local_run(msg)
+    if COOP.saves then COOP.saves.last_save_state = nil end
+    if msg.load then
+        COOP.start_local_run_loaded(msg)
+    else
+        COOP.start_local_run(msg)
+    end
+end
+
+function COOP.start_local_run_loaded(msg)
+    local t, err = COOP.saves.load_table(msg.sid, COOP.me.name)
+    if not t then
+        COOP.log('load failed: ' .. tostring(err))
+        COOP.toast('Could not load your save: ' .. tostring(err), G.C.RED, 5)
+        COOP.leave()
+        return
+    end
+    COOP.starting = true
+    local ok, e = pcall(function()
+        if G.OVERLAY_MENU then G.FUNCS.exit_overlay_menu() end
+        G.FUNCS.start_run(nil, { savetext = t })
+    end)
+    COOP.starting = false
+    if not ok then
+        COOP.log('start_local_run_loaded failed: ' .. tostring(e))
+        COOP.toast('Failed to load run: ' .. tostring(e), G.C.RED, 5)
+    end
 end
 
 function COOP.start_local_run(msg)
@@ -599,16 +674,18 @@ function COOP.start_local_run(msg)
 end
 
 -- Called from the Game:start_run hook after the base game initialised the run.
-function COOP.apply_run_mods()
+function COOP.apply_run_mods(loaded)
     if not COOP.active or not COOP.run then return end
     local n = math.max(1, COOP.run.n)
     COOP.saved_no_saving = G.F_NO_SAVING
     G.F_NO_SAVING = true
     G.SETTINGS.tutorial_complete = true
-    G.GAME.starting_params.ante_scaling = (G.GAME.starting_params.ante_scaling or 1) * n
-    G.GAME.dollars = (G.GAME.dollars or 0) * n
-    G.GAME.shop = G.GAME.shop or { joker_max = 2 }
-    G.GAME.shop.joker_max = (G.GAME.shop.joker_max or 2) * n
+    if not loaded then
+        G.GAME.starting_params.ante_scaling = (G.GAME.starting_params.ante_scaling or 1) * n
+        G.GAME.dollars = (G.GAME.dollars or 0) * n
+        G.GAME.shop = G.GAME.shop or { joker_max = 2 }
+        G.GAME.shop.joker_max = (G.GAME.shop.joker_max or 2) * n
+    end
     G.GAME.coop_players = n
     if not COOP.is_host() then
         G.GAME.modifiers.no_interest = true
@@ -823,6 +900,13 @@ function COOP.update_run(dt)
     if not run or G.STAGE ~= G.STAGES.RUN or not G.GAME then return end
     local st = G.STATE
 
+    -- after a load the host's wallet is the truth: push it once
+    if COOP.is_host() and not run.wallet_synced and G.HUD then
+        run.wallet_synced = true
+        COOP.broadcast_wallet()
+        COOP.broadcast_blinds()
+    end
+
     -- reset per-blind flags whenever we are outside of a blind
     if st == G.STATES.ROUND_EVAL or st == G.STATES.SHOP or st == G.STATES.BLIND_SELECT or st == G.STATES.GAME_OVER then
         if run.blind_ready_sent then
@@ -855,6 +939,7 @@ function COOP.update_run(dt)
 
     if COOP.spectate then COOP.spectate.update(dt) end
     if COOP.shop then COOP.shop.update(dt) end
+    if COOP.saves then COOP.saves.update(dt) end
 end
 
 -- Player actions -------------------------------------------------------------

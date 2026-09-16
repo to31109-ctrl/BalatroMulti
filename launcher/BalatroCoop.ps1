@@ -212,6 +212,23 @@ function Install-Shortcut($gameExe) {
     Write-Ok "Desktop shortcut created: $lnk"
 }
 
+# ---------------------------------------------------------------- firewall
+function Ensure-FirewallRule($gameExe) {
+    # Lets friends connect when you host. Needs admin once; Windows shows a UAC prompt.
+    try {
+        $existing = Get-NetFirewallRule -DisplayName 'Balatro Co-op' -ErrorAction SilentlyContinue
+        if ($existing) { return }
+    } catch {}
+    Write-Step 'Adding a Windows Firewall rule so friends can connect to you (UAC prompt)...'
+    $cmd = "netsh advfirewall firewall add rule name=`"Balatro Co-op`" dir=in action=allow program=`"$gameExe`" enable=yes profile=any"
+    try {
+        Start-Process -FilePath 'powershell.exe' -Verb RunAs -Wait -ArgumentList "-NoProfile -WindowStyle Hidden -Command `"$cmd`""
+        Write-Ok 'Firewall rule added.'
+    } catch {
+        Write-Warn2 "Firewall rule skipped: $($_.Exception.Message). If friends cannot connect, allow Balatro.exe in Windows Firewall."
+    }
+}
+
 # ---------------------------------------------------------------- broken mods
 function Disable-BrokenMods {
     # The BalatroMP stub distributed via BMM deliberately crashes the game on start.
@@ -238,7 +255,7 @@ try {
     Ensure-Lovely $gameDirPath
     Disable-BrokenMods
     if (-not $NoUpdate) { Update-Mod } else { Write-Warn2 'Update check skipped.' }
-    if ($Install) { Install-Shortcut $gameExe }
+    if ($Install) { Install-Shortcut $gameExe; Ensure-FirewallRule $gameExe }
 
     if (-not $NoLaunch) {
         Write-Step 'Starting Balatro...'

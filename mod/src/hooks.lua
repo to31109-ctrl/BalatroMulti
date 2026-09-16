@@ -63,7 +63,7 @@ end)
 wrap(Game, 'start_run', function(orig, self, args)
     orig(self, args)
     if COOP.active and COOP.run then
-        local ok, err = pcall(COOP.apply_run_mods)
+        local ok, err = pcall(COOP.apply_run_mods, args and args.savetext ~= nil)
         if not ok then COOP.log('apply_run_mods failed: ' .. tostring(err)) end
     end
 end)

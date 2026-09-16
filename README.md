@@ -9,7 +9,8 @@ A co-operative multiplayer mod for Balatro. One shared run for 2 to 4 friends:
 - **Voting.** Playing or skipping a blind is a majority vote. A tie is decided by a coin flip. Leaving the shop requires everyone to press *Next Round*.
 - **Host picks the deck and stake**, and whether the first player rotates each blind or stays fixed.
 - **Personal stuff stays personal:** everyone has their own deck, hand, discards, jokers, consumables and vouchers.
-- **No Steam networking.** Direct TCP connection (LAN, Hamachi/Radmin/ZeroTier/Tailscale, or a forwarded port).
+- **Join codes, no port forwarding.** The host's game opens the port on the router automatically (UPnP) and shows a short code like `7B26J-FWNUT`; friends type the code. No Steam networking.
+- **Save & load.** Runs save automatically at every shop and blind select. The host picks *Load saved run*, friends join with the code using the same name as before, and everyone gets their own deck, jokers, hand levels and vouchers back.
 - **Auto-updating launcher.** Friends install once; the desktop shortcut checks GitHub for a new version before every launch.
 
 ## Install (for players)
@@ -23,8 +24,11 @@ The mod does not need Steamodded. If Windows SmartScreen complains about the `.b
 
 ## Playing
 
-- **Host:** CO-OP -> HOST GAME. Pick deck, stake and turn order. Tell your friends the IP shown at the top (LAN IP; for internet play use a VPN tool such as Hamachi/Radmin/Tailscale, or forward TCP port 21337). Press START RUN when everyone is in.
-- **Join:** CO-OP -> JOIN GAME, type the host's IP and port, CONNECT.
+- **Host:** CO-OP -> HOST NEW RUN. Pick deck, stake and turn order. Send your friends the JOIN CODE shown at the top. Press START RUN when everyone is in.
+- **Join:** CO-OP -> JOIN GAME, type the code, CONNECT. (An IP address plus port also works, e.g. on a LAN.)
+- **Continue a saved run:** the host picks CO-OP -> LOAD SAVED RUN and chooses the run; the same players join with the same names; the host presses CONTINUE RUN.
+- **Names matter:** saved runs are matched to players by name, so keep your name the same.
+- If the router has UPnP disabled or the ISP uses a shared address (CGNAT), the internet code cannot work; use the LAN code on the same network or a VPN tool such as Hamachi/Radmin/Tailscale/ZeroTier and join by IP.
 - Blind select: everybody presses *Select* or *Skip*; majority wins, ties are coin flips.
 - During a blind only the active player can play/discard. Others watch.
 - Shop: buy freely from the shared wallet; press *Next Round* when done. The round starts when everyone is ready.
@@ -45,7 +49,7 @@ Link the mod folder into the Mods directory instead of copying, so edits are liv
 mklink /J "%APPDATA%\Balatro\Mods\BalatroCoop" "D:\path\to\BalatroMulti\mod"
 ```
 
-Logs: `%APPDATA%\Balatro\coop.log` (mod) and `%APPDATA%\Balatro\Mods\lovely\log` (injector).
+Logs: `%APPDATA%\Balatro\coop.log` (mod) and `%APPDATA%\Balatro\Mods\lovely\log` (injector). Co-op saves live in `%APPDATA%\Balatro\coop_saves`.
 
 Set the environment variable `BALATRO_COOP_DEBUG=1` to enable the developer command channel (see `mod/src/debug.lua`); `BALATRO_COOP_AUTO=host|join` auto-opens a lobby, which makes it easy to test with two game instances on one PC.
 
@@ -55,8 +59,9 @@ Set the environment variable `BALATRO_COOP_DEBUG=1` to enable the developer comm
 mod/            the mod itself (installed to %APPDATA%\Balatro\Mods\BalatroCoop)
   lovely.toml   Lovely patch: appends bootstrap.lua to main.lua
   bootstrap.lua loads mod/src/init.lua from disk
-  src/          net.lua (TCP), core.lua (lobby, turns, votes, wallet), shop.lua,
-                spectate.lua, ui.lua, hooks.lua, json.lua, log.lua, debug.lua
+  src/          net.lua (TCP), upnp.lua (router port + join codes), core.lua (lobby, turns,
+                votes, wallet), shop.lua, spectate.lua, saves.lua, ui.lua, hooks.lua, json.lua,
+                log.lua, debug.lua
 launcher/       BalatroCoop.ps1 (install + update + launch), Install-BalatroCoop.bat
 version.txt     current version (checked by the launcher)
 ```
