@@ -230,6 +230,21 @@ wrap(G.FUNCS, 'can_buy_and_use', gate_pending)
 wrap(G.FUNCS, 'can_open', gate_pending)
 wrap(G.FUNCS, 'can_redeem', gate_pending)
 
+-- Spectators hear what the active player hears --------------------------------
+COOP.snd = { budget = 40, refill_at = 0 }
+wrap(_G, 'play_sound', function(orig, sound_code, per, vol)
+    if COOP.active and COOP.is_my_turn() and type(sound_code) == 'string'
+        and not sound_code:find('music') and not sound_code:find('ambient') and #COOP.players > 1 then
+        local now = love.timer.getTime()
+        if now - COOP.snd.refill_at >= 1 then COOP.snd.budget, COOP.snd.refill_at = 40, now end
+        if COOP.snd.budget > 0 then
+            COOP.snd.budget = COOP.snd.budget - 1
+            pcall(COOP.send_to_host, { t = 'snd', c = sound_code, p = per, v = vol })
+        end
+    end
+    return orig(sound_code, per, vol)
+end)
+
 -- Shared wallet ----------------------------------------------------------------
 wrap(_G, 'ease_dollars', function(orig, mod, instant)
     orig(mod, instant)

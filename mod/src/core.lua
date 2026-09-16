@@ -718,6 +718,12 @@ COOP.host_handlers.snap = function(player, msg)
     COOP.broadcast(msg, player.id)
 end
 
+COOP.host_handlers.snd = function(player, msg)
+    if not COOP.run or COOP.run.turn.active ~= player.id then return end
+    msg.from = player.id
+    COOP.broadcast(msg, player.id)
+end
+
 COOP.host_handlers.cur = function(player, msg)
     if not COOP.run or COOP.run.turn.active ~= player.id then return end
     msg.from = player.id
@@ -1117,6 +1123,12 @@ end
 
 COOP.client_handlers.snap = function(msg)
     if COOP.spectate then COOP.spectate.on_snapshot(msg) end
+end
+
+COOP.client_handlers.snd = function(msg)
+    if COOP.spectate and COOP.spectate.target and msg.from == COOP.spectate.target and type(msg.c) == 'string' then
+        pcall(play_sound, msg.c, msg.p, msg.v)
+    end
 end
 
 COOP.client_handlers.cur = function(msg)

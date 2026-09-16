@@ -8,7 +8,8 @@ Read this first in any new session. Keep it current: add PLANNED / BUILT / RELEA
 3. **Names are identities.** Saves are matched by player name; never change how names are stored without a migration.
 4. **Diagnose from logs, not theory.** `%APPDATA%\Balatro\coop_players.log` on the host has every player's log lines, stats, stalls and crashes. Ask for it before guessing.
 5. **Never test on the owner's live session** (killing instances kills their run). Test with the debug harness described below.
-6. The game copy here is a non-Steam build. `steam_api64.dll` was once removed by antivirus; the owner restores it themselves. Do not touch DRM files.
+6. **NEVER delete or rewrite `%APPDATA%\Balatro\coop_saves` on the owner's PC.** It holds the owner's real runs with their friend (players Whoppa + Nigber). Test with the names TestHost/TestBuddy and remove only the session folders those tests created (compare the folder list before/after). Never change the save format without a loader for the old one.
+7. The game copy here is a non-Steam build. `steam_api64.dll` was once removed by antivirus; the owner restores it themselves. Do not touch DRM files.
 
 ## What this is
 A Balatro mod (Lua, loaded by the Lovely injector, no Steamodded) for 2–4 friends playing ONE shared run:
@@ -88,4 +89,5 @@ Gotcha: Bash heredocs in this environment collapse `\\` to `\`; write files with
 ## Release log
 - 1.0.0 core mod + launcher · 1.1.0 UPnP join codes, save/load, firewall rule · 1.1.1 exe picker · 1.1.2 vote/ready guards
 - 1.2.0 copy/paste codes, Escape-menu save with mid-blind resume, spectator boxes · 1.2.1 per-player seeds, 12× smaller stream, perf watchdog · 1.2.2 host collects all players' logs, ping, stall detection
+- 1.3.4 spectators hear the active player's sound effects (play_sound forwarded, ≤40/s)
 - 1.3.0 relay mode (dormant) · 1.3.1 relay deployed, Auto transport · 1.3.2 crash/focus/spike diagnostics · 1.3.3 UPnP retry, connection type shown, lower cursor rate
