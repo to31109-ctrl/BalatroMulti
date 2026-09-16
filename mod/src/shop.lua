@@ -224,6 +224,8 @@ function shop.try_apply()
     local msg = shop.pending
     if not msg then return end
     if G.STATE ~= G.STATES.SHOP or not areas_ready() then return end
+    -- wait until the base game finished its (empty) shop load, otherwise it would wipe our cards
+    if G.load_shop_jokers or G.load_shop_vouchers or G.load_shop_booster then return end
     shop.pending = nil
     if msg.reroll_cost then G.GAME.current_round.reroll_cost = msg.reroll_cost end
     shop.reconcile(G.shop_jokers, msg.jokers, nil)
