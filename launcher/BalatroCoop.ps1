@@ -55,8 +55,34 @@ function Save-Config {
 }
 
 # ---------------------------------------------------------------- find game
+function Show-GamePicker($startDir) {
+    # Always lets the player choose where Balatro is installed.
+    try {
+        Add-Type -AssemblyName System.Windows.Forms
+        $dlg = New-Object System.Windows.Forms.OpenFileDialog
+        $dlg.Title = 'Select your Balatro.exe (the folder where Balatro is installed)'
+        $dlg.Filter = 'Balatro (Balatro.exe)|Balatro.exe|All files (*.*)|*.*'
+        $dlg.CheckFileExists = $true
+        if ($startDir -and (Test-Path $startDir)) { $dlg.InitialDirectory = $startDir }
+        if ($dlg.ShowDialog() -eq 'OK' -and (Test-Path $dlg.FileName)) { return $dlg.FileName }
+    } catch {}
+    return $null
+}
+
 function Find-BalatroExe {
     if ($GameDir -and (Test-Path (Join-Path $GameDir 'Balatro.exe'))) { return (Join-Path $GameDir 'Balatro.exe') }
+    if ($Install) {
+        # First-time install: the player picks the game location themselves.
+        $guess = $null
+        if ($config.gameExe -and (Test-Path $config.gameExe)) { $guess = Split-Path $config.gameExe }
+        Write-Step 'Please select your Balatro.exe in the window that just opened.'
+        $picked = Show-GamePicker $guess
+        while (-not $picked) {
+            $typed = Read-Host 'No file selected. Paste the full path to Balatro.exe (or press Enter to open the picker again)'
+            if ($typed -and (Test-Path $typed)) { $picked = $typed } else { $picked = Show-GamePicker $guess }
+        }
+        return $picked
+    }
     if ($config.gameExe -and (Test-Path $config.gameExe)) { return $config.gameExe }
 
     $candidates = New-Object System.Collections.Generic.List[string]
@@ -88,14 +114,9 @@ function Find-BalatroExe {
     }
     foreach ($c in $candidates) { if (Test-Path $c) { return $c } }
 
-    Write-Warn2 'Could not find Balatro.exe automatically.'
-    try {
-        Add-Type -AssemblyName System.Windows.Forms
-        $dlg = New-Object System.Windows.Forms.OpenFileDialog
-        $dlg.Title = 'Select your Balatro.exe'
-        $dlg.Filter = 'Balatro|Balatro.exe'
-        if ($dlg.ShowDialog() -eq 'OK') { return $dlg.FileName }
-    } catch {}
+    Write-Warn2 'Could not find Balatro.exe automatically. Please select it.'
+    $picked = Show-GamePicker $null
+    if ($picked) { return $picked }
     $typed = Read-Host 'Paste the full path to Balatro.exe'
     if ($typed -and (Test-Path $typed)) { return $typed }
     throw 'Balatro.exe not found.'
