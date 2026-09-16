@@ -1,0 +1,13 @@
+# Balatro Co-op — Lovely patch manifest
+# Injects the co-op bootstrap at the end of main.lua. Everything else is loaded
+# from this folder at runtime (see bootstrap.lua).
+[manifest]
+version = "1.0.0"
+dump_lua = true
+priority = 0
+
+[[patches]]
+[patches.copy]
+target = "main.lua"
+position = "append"
+sources = ["bootstrap.lua"]

@@ -1,0 +1,5 @@
+# runtime / editor noise
+*.log
+.vscode/
+.idea/
+Thumbs.db
