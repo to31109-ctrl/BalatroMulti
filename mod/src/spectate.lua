@@ -16,6 +16,22 @@ spec.send_timer = 0
 spec.cursor_timer = 0
 spec.last_cursor = { x = nil, y = nil }
 
+-- Playing cards: tiny description (key, enhancement, edition, seal, debuff, face-down).
+-- Jokers/consumables: full save (their descriptions depend on ability values).
+local function ser_playing(area)
+    local list = {}
+    if not area or not area.cards then return list end
+    for i, c in ipairs(area.cards) do
+        local ed = c.edition and c.edition.type or nil
+        list[i] = {
+            uid = c.sort_id, hl = c.highlighted and true or false,
+            k = c.config.card_key, c = c.config.center_key,
+            e = ed, sl = c.seal, d = c.debuff and true or nil, f = (c.facing == 'back') and true or nil,
+        }
+    end
+    return list
+end
+
 local function ser_cards(area)
     local list = {}
     if not area or not area.cards then return list end
@@ -50,7 +66,7 @@ function spec.send_updates(dt)
     if spec.send_timer < 0.15 then return end
     spec.send_timer = 0
     local parts = {
-        hand = ser_cards(G.hand), play = ser_cards(G.play),
+        hand = ser_playing(G.hand), play = ser_playing(G.play),
         jokers = ser_cards(G.jokers), cons = ser_cards(G.consumeables),
         hud = hud_data(),
     }
@@ -187,7 +203,7 @@ function spec.reconcile(area, list)
         local c = existing[item.uid]
         if c then
             existing[item.uid] = nil
-        else
+        elseif item.s then
             c = Card(area.T.x + area.T.w / 2, area.T.y, G.CARD_W, G.CARD_H, G.P_CARDS.empty, G.P_CENTERS.c_base,
                 { bypass_discovery_center = true, bypass_discovery_ui = true })
             c:load(item.s)
@@ -196,9 +212,22 @@ function spec.reconcile(area, list)
             c.added_to_deck = false
             c.states.drag.can = false
             c.states.click.can = false
+        else
+            local front = G.P_CARDS[item.k] or G.P_CARDS.empty
+            local center = G.P_CENTERS[item.c] or G.P_CENTERS.c_base
+            c = Card(area.T.x + area.T.w / 2, area.T.y, G.CARD_W, G.CARD_H, front, center,
+                { bypass_discovery_center = true, bypass_discovery_ui = true })
+            if item.e then pcall(c.set_edition, c, { [item.e] = true }, true, true) end
+            if item.sl then pcall(c.set_seal, c, item.sl, true, true) end
+            if item.f then pcall(c.flip, c) end
+            c:hard_set_T()
+            c.coop_uid = item.uid
+            c.added_to_deck = false
+            c.states.drag.can = false
+            c.states.click.can = false
         end
         c.highlighted = item.hl and true or false
-        if item.s then c.debuff = item.s.debuff end
+        if item.s and type(item.s) == 'table' then c.debuff = item.s.debuff else c.debuff = item.d and true or false end
         new_cards[#new_cards + 1] = c
     end
     for _, c in pairs(existing) do

@@ -277,12 +277,26 @@ end
 
 COOP.timers = { snapshot = 0, cursor = 0, shop = 0, hud = 0 }
 
+COOP.perf = { slow_logged_at = 0, worst = 0 }
+
 function COOP.update(dt)
+    local t0 = love.timer.getTime()
     if COOP.mode == 'host' and COOP.host_obj then
         COOP.host_obj:update(host_on_message, host_on_disconnect)
     elseif COOP.mode == 'client' and COOP.client_obj then
         COOP.client_obj:update(client_on_message, client_on_disconnect)
     end
+    COOP.update_inner(dt)
+    -- performance watchdog: log when the mod itself eats a frame (at most every 5 s)
+    local spent = (love.timer.getTime() - t0) * 1000
+    if spent > COOP.perf.worst then COOP.perf.worst = spent end
+    if spent > 25 and t0 - COOP.perf.slow_logged_at > 5 then
+        COOP.perf.slow_logged_at = t0
+        COOP.log(string.format('perf: co-op update took %.0f ms this frame (game fps %d, state %s)', spent, love.timer.getFPS(), tostring(G.STATE)))
+    end
+end
+
+function COOP.update_inner(dt)
     if COOP.active then
         local ok, err = pcall(COOP.update_run, dt)
         if not ok then
@@ -584,9 +598,16 @@ function COOP.host_start_game()
     end
     COOP.lobby.started = true
     local seed = random_string(8, math.random() * 1000 + (love.timer and love.timer.getTime() or 0))
+    -- every player gets their own seed so decks shuffle differently (bosses, tags and the shop
+    -- are still shared because the host sends those)
+    local seeds = {}
+    for i, p in ipairs(COOP.players) do
+        seeds[tostring(p.id)] = (i == 1) and seed or random_string(8, math.random() * 1000 + i * 17.31 + (love.timer and love.timer.getTime() or 0))
+    end
     local msg = {
         t = 'start',
         seed = seed,
+        seeds = seeds,
         sid = seed .. '-' .. os.date('%Y%m%d-%H%M%S'),
         deck = COOP.lobby.deck,
         stake = COOP.lobby.stake,
@@ -701,7 +722,8 @@ function COOP.start_local_run(msg)
         if G.OVERLAY_MENU then G.FUNCS.exit_overlay_menu() end
         local back = get_deck_from_name(msg.deck) or G.P_CENTERS.b_red
         G.GAME.viewed_back = Back(back)
-        G.FUNCS.start_run(nil, { stake = msg.stake or 1, seed = msg.seed })
+        local my_seed = (msg.seeds and (msg.seeds[COOP.me.id] or msg.seeds[tostring(COOP.me.id)])) or msg.seed
+        G.FUNCS.start_run(nil, { stake = msg.stake or 1, seed = my_seed })
     end)
     COOP.starting = false
     if not ok then
