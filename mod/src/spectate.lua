@@ -30,8 +30,8 @@ local function hud_data()
     local ch = cr.current_hand or {}
     return {
         hands = cr.hands_left, discards = cr.discards_left, chips = G.GAME.chips,
-        handname = ch.handname or '', chip_text = ch.chip_text or '0', mult_text = ch.mult_text or '0',
-        hand_level = ch.hand_level or '', chip_total_text = ch.chip_total_text or '',
+        handname = ch.handname or '', hchips = ch.chips or 0, hmult = ch.mult or 0,
+        hand_level = ch.hand_level or '', chip_total = ch.chip_total or 0,
     }
 end
 
@@ -80,10 +80,17 @@ function spec.on_turn_changed()
     end
 end
 
-local function make_mirror(src, type_, limit)
+local function make_mirror(src, type_)
+    local limit = src.config.card_limit or 8
     local a = CardArea(src.T.x, src.T.y, src.T.w, src.T.h,
         { card_limit = limit, type = type_, highlight_limit = 0, card_w = src.card_w })
+    a.config.temp_limit = src.config.temp_limit or limit
     a.coop_spectate = true
+    -- no "x/y" card counter on the mirror (the real areas already draw theirs)
+    a.children.area_uibox = UIBox({
+        definition = { n = G.UIT.ROOT, config = { align = 'cm', colour = G.C.CLEAR }, nodes = {} },
+        config = { align = 'cm', parent = a },
+    })
     a:hard_set_T(src.T.x, src.T.y, src.T.w, src.T.h)
     return a
 end
@@ -98,10 +105,10 @@ function spec.start(id)
     local cr = G.GAME.current_round
     spec.saved = { hands = cr.hands_left, discards = cr.discards_left }
     spec.areas = {
-        hand = make_mirror(G.hand, 'hand', 100),
-        play = make_mirror(G.play, 'play', 10),
-        jokers = make_mirror(G.jokers, 'joker', 20),
-        cons = make_mirror(G.consumeables, 'joker', 20),
+        hand = make_mirror(G.hand, 'hand'),
+        play = make_mirror(G.play, 'play'),
+        jokers = make_mirror(G.jokers, 'joker'),
+        cons = make_mirror(G.consumeables, 'joker'),
     }
     spec.cursor.visible = true
     for part, data in pairs(spec.pending) do
@@ -161,10 +168,10 @@ function spec.apply_part(part, data)
         local ch = cr.current_hand
         if ch then
             ch.handname = data.handname or ''
-            ch.chip_text = data.chip_text or '0'
-            ch.mult_text = data.mult_text or '0'
+            ch.chips = data.hchips or 0
+            ch.mult = data.hmult or 0
             ch.hand_level = data.hand_level or ''
-            ch.chip_total_text = data.chip_total_text or ''
+            ch.chip_total = data.chip_total or 0
         end
         return
     end
@@ -188,6 +195,7 @@ function spec.reconcile(area, list)
             c = Card(area.T.x + area.T.w / 2, area.T.y, G.CARD_W, G.CARD_H, G.P_CARDS.empty, G.P_CENTERS.c_base,
                 { bypass_discovery_center = true, bypass_discovery_ui = true })
             c:load(item.s)
+            c:hard_set_T()
             c.coop_uid = item.uid
             c.added_to_deck = false
             c.states.drag.can = false

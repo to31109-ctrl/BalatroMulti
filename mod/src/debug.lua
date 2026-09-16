@@ -65,8 +65,18 @@ function dbg.update(dt)
         elseif dbg.auto == 'join' then
             G.FUNCS.coop_menu()
             G.FUNCS.coop_join_click()
+            dbg.join_retries = 10
+        end
+    end
+    if dbg.join_retries and dbg.join_retries > 0 and COOP.mode == nil then
+        dbg.retry_timer = (dbg.retry_timer or 0) + 0.2
+        if dbg.retry_timer >= 1.5 then
+            dbg.retry_timer = 0
+            dbg.join_retries = dbg.join_retries - 1
             G.FUNCS.coop_connect_click()
         end
+    elseif COOP.mode then
+        dbg.join_retries = nil
     end
     local info = love.filesystem.getInfo(dbg.cmd_file)
     if info then

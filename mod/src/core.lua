@@ -873,8 +873,7 @@ end
 function COOP.turn_over()
     if not COOP.run then return end
     COOP.log('my turn is over, chips=' .. tostring(G.GAME.chips))
-    COOP.run.turn.active = nil
-    if COOP.spectate then COOP.spectate.on_turn_changed() end
+    -- the host's reply (next 'turn' or 'round_result') moves us out of the active seat
     COOP.send_to_host({ t = 'turn_done', chips = G.GAME.chips })
 end
 

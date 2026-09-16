@@ -55,6 +55,8 @@ local function overlay(contents, back_func)
     G.FUNCS.overlay_menu({
         definition = create_UIBox_generic_options({ back_func = back_func or 'exit_overlay_menu', contents = contents }),
     })
+    -- plain text rows created this way end up misplaced until the box is laid out a second time
+    if G.OVERLAY_MENU then G.OVERLAY_MENU:recalculate() end
 end
 
 -- Screens --------------------------------------------------------------------
@@ -221,8 +223,8 @@ function ui.ensure_hud()
         { n = G.UIT.T, config = { ref_table = ui.hud_vars.info, ref_value = 't', scale = 0.24, colour = G.C.GOLD } },
     } }
     ui.hud = UIBox({
-        definition = { n = G.UIT.ROOT, config = { align = 'cm', padding = 0.08, r = 0.1, colour = G.C.UI.TRANSPARENT_DARK, minw = 2.7, maxw = 2.7 }, nodes = rows },
-        config = { align = 'cri', offset = { x = -0.1, y = -0.8 }, major = G.ROOM_ATTACH, bond = 'Weak' },
+        definition = { n = G.UIT.ROOT, config = { align = 'cm', padding = 0.06, r = 0.1, colour = G.C.UI.TRANSPARENT_DARK, minw = 2.5, maxw = 2.5 }, nodes = rows },
+        config = { align = 'cri', offset = { x = 1.15, y = -1.0 }, major = G.ROOM_ATTACH, bond = 'Weak' },
     })
 end
 

@@ -185,6 +185,7 @@ local function make_card(area, item, kind)
     local card = Card(area.T.x + area.T.w / 2, area.T.y, G.CARD_W, G.CARD_H, G.P_CARDS.empty, G.P_CENTERS.c_base,
         { bypass_discovery_center = true, bypass_discovery_ui = true })
     card:load(item.s)
+    card:hard_set_T()
     card.coop_uid = item.uid
     card.added_to_deck = false
     if kind == 'Voucher' then card.shop_voucher = true end
