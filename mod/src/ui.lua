@@ -74,7 +74,7 @@ function ui.open_main()
         row({ text('Keep the same name: saved co-op runs are matched to players by name.', 0.25, G.C.ORANGE) }),
         COOP.relay.available() and row({
             { n = G.UIT.C, config = { align = 'cm', minw = 2.2 }, nodes = { text('Hosting via', 0.35, G.C.WHITE) } },
-            create_option_cycle({ options = { 'Relay (no router setup)', 'Direct (UPnP)' }, current_option = (COOP.cfg.transport == 'direct') and 2 or 1, opt_callback = 'coop_change_transport', w = 4.2, colour = G.C.RED, scale = 0.8 }),
+            create_option_cycle({ options = { 'Auto (direct, relay if needed)', 'Relay (works anywhere)', 'Direct (UPnP, lowest ping)' }, current_option = (COOP.cfg.transport == 'relay') and 2 or (COOP.cfg.transport == 'direct') and 3 or 1, opt_callback = 'coop_change_transport', w = 4.6, colour = G.C.RED, scale = 0.8 }),
         }) or nil,
         row({ UIBox_button({ button = 'coop_host_click', label = { 'HOST NEW RUN' }, colour = G.C.BLUE, minw = 5, minh = 0.9 }) }),
         row({ UIBox_button({ button = 'coop_load_click', label = { 'LOAD SAVED RUN' }, colour = G.C.ORANGE, minw = 5, minh = 0.9 }) }),
@@ -251,7 +251,7 @@ G.FUNCS.coop_delete_save = function(e)
 end
 
 G.FUNCS.coop_change_transport = function(args)
-    COOP.cfg.transport = (args.to_key == 2) and 'direct' or 'relay'
+    COOP.cfg.transport = ({ 'auto', 'relay', 'direct' })[args.to_key] or 'auto'
     COOP.save_config()
 end
 
@@ -434,7 +434,7 @@ local function lobby_vars()
     local hi = COOP.host_info
     if hi and hi.relay then
         ui.vars.code = hi.code or '?'
-        ui.vars.code_hint = 'Relay room: friends type this code anywhere in the world. No router setup needed.'
+        ui.vars.code_hint = 'Relay room: friends type this code anywhere. No router setup needed (adds some ping).'
     elseif hi then
         ui.vars.code = hi.code or hi.lan_code or '?'
         if hi.code and not hi.upnp_error then

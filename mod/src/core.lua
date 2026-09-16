@@ -146,10 +146,31 @@ function COOP.reset_state()
     if COOP.ui and COOP.ui.remove_hud then pcall(COOP.ui.remove_hud) end
 end
 
+function COOP.start_host_relay()
+    COOP.leave(true)
+    COOP.transport = 'relay'
+    local h, err = COOP.relay.host(COOP.relay.url)
+    if not h then
+        COOP.status = 'Relay unavailable (' .. tostring(err) .. '). Try Direct hosting.'
+        COOP.log(COOP.status)
+        return false, err
+    end
+    COOP.mode = 'host'
+    COOP.host_obj = h
+    COOP.me.id = 1
+    COOP.me.name = COOP.cfg.name
+    COOP.players = { { id = 1, name = COOP.cfg.name, conn = nil } }
+    COOP.lobby.started = false
+    COOP.host_info = { port = 0, lan_ip = net.local_ip(), code = h.code, relay = true }
+    COOP.status = 'Relay room open. Share the JOIN CODE with your friends (works anywhere, no router setup).'
+    COOP.log('hosting via relay, room ' .. tostring(h.code))
+    return true
+end
+
 function COOP.start_host(port, transport)
     COOP.leave(true)
-    transport = transport or COOP.cfg.transport or 'relay'
-    if transport == 'relay' and not COOP.relay.available() then transport = 'direct' end
+    transport = transport or COOP.cfg.transport or 'auto'
+    if (transport == 'relay' or transport == 'auto') and not COOP.relay.available() then transport = 'direct' end
     COOP.transport = transport
     if transport == 'relay' then
         COOP.status = 'Connecting to the relay...'
@@ -193,6 +214,11 @@ function COOP.start_host(port, transport)
         COOP.host_info.external_ip = ext
         COOP.status = 'Port opened on your router. Share the JOIN CODE with your friends.'
     else
+        if transport == 'auto' then
+            -- router refused: fall back to the relay so hosting still works
+            COOP.log('auto transport: UPnP failed (' .. tostring(err) .. '), switching to relay')
+            return COOP.start_host_relay()
+        end
         COOP.host_info.upnp_error = err
         local ext2 = COOP.upnp.public_ip_from_web()
         if ext2 then
@@ -201,6 +227,7 @@ function COOP.start_host(port, transport)
         end
         COOP.status = 'Router did not open the port automatically (' .. tostring(err) .. '). Internet code may not work; LAN code works on the same network.'
     end
+    if transport == 'auto' then COOP.transport = 'direct' end
     return true
 end
 

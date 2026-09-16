@@ -31,6 +31,10 @@ export default {
     if (url.pathname === '/' || url.pathname === '/health') {
       return new Response('Balatro Co-op relay OK', { status: 200, headers: { 'content-type': 'text/plain' } });
     }
+    if (url.pathname === '/where') {
+      const cf = request.cf || {};
+      return new Response(JSON.stringify({ edge: cf.colo, country: cf.country, continent: cf.continent }), { headers: { 'content-type': 'application/json' } });
+    }
     if (url.pathname !== '/ws') return new Response('not found', { status: 404 });
     if (request.headers.get('Upgrade') !== 'websocket') return new Response('expected websocket', { status: 426 });
 
@@ -42,7 +46,10 @@ export default {
       return new Response('bad role or code', { status: 400 });
     }
     const id = env.ROOMS.idFromName(code);
-    const stub = env.ROOMS.get(id);
+    // Place the room near the host: Durable Objects accept a region hint on first use.
+    const continent = (request.cf && request.cf.continent) || '';
+    const hint = { AF: 'afr', EU: 'weur', NA: 'enam', SA: 'sam', AS: 'apac', OC: 'oc' }[continent];
+    const stub = (role === 'host' && hint) ? env.ROOMS.get(id, { locationHint: hint }) : env.ROOMS.get(id);
     const fwd = new URL(request.url);
     fwd.searchParams.set('code', code);
     return stub.fetch(new Request(fwd.toString(), request));
